@@ -39,8 +39,8 @@ jobs:
           push: false
           tags: ktb-chat-frontend:pr-${{ github.event.pull_request.number }}
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
-            NEXT_PUBLIC_SOCKET_URL=${{ vars.NEXT_PUBLIC_SOCKET_URL }}
+            NEXT_PRIVATE_API_URL=${{ vars.NEXT_PRIVATE_API_URL }}
+            NEXT_PRIVATE_SOCKET_URL=${{ vars.NEXT_PRIVATE_SOCKET_URL }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
@@ -59,8 +59,8 @@ jobs:
           tags: ktb-chat-frontend:latest
           outputs: type=docker,dest=/tmp/frontend.tar
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
-            NEXT_PUBLIC_SOCKET_URL=${{ vars.NEXT_PUBLIC_SOCKET_URL }}
+            NEXT_PRIVATE_API_URL=${{ vars.NEXT_PRIVATE_API_URL }}
+            NEXT_PRIVATE_SOCKET_URL=${{ vars.NEXT_PRIVATE_SOCKET_URL }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
@@ -70,4 +70,11 @@ jobs:
         run: |
           aws s3 cp "/tmp/frontend.tar" \
             "s3://${S3_BUCKET}/static/main/docker-images/frontend.tar" \
+            --only-show-errors
+      - name: Upload config.json to S3
+        env:
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+        run: |
+          aws s3 cp "apps/deploy/config.json" \
+            "s3://${S3_BUCKET}/static/main/config.json" \
             --only-show-errors
