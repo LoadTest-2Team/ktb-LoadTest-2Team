@@ -75,7 +75,12 @@ const MentionDropdown = ({
                 tabIndex={0}
                 onClick={() => onSelect(user)}
                 onKeyDown={(e) => handleKeyDown(e, user)}
-                onMouseEnter={() => onMouseEnter(index)}
+                onMouseEnter={(e) => {
+                  onMouseEnter(index);
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  }
+                }}
                 className="transition-all duration-200 cursor-pointer"
                 style={{
                   padding: '10px 12px',
@@ -90,11 +95,6 @@ const MentionDropdown = ({
                   ...(isActive ? {
                     boxShadow: '0 0 0 1px rgba(59, 130, 246, 0.2), 0 2px 8px rgba(59, 130, 246, 0.15)'
                   } : {})
-                }}
-                onMouseEnterCapture={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive) {
