@@ -14,9 +14,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
@@ -56,7 +56,7 @@ public class MessageLoader {
             String userId) {
         Pageable pageable = PageRequest.of(0, limit, Sort.by("timestamp").descending());
 
-        Page<Message> messagePage = messageRepository
+        Slice<Message> messagePage = messageRepository
                 .findByRoomIdAndTimestampBefore(roomId, before, pageable);
 
         List<Message> messages = messagePage.getContent();
