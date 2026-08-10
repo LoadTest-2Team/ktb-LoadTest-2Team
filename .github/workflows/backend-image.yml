@@ -28,16 +28,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build backend image for pull request
-        uses: docker/build-push-action@v6
-        with:
-          context: apps/backend
-          file: apps/backend/Dockerfile
-          push: false
-          tags: ktb-chat-backend:pr-${{ github.event.pull_request.number }}
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -50,7 +40,7 @@ jobs:
         with:
           context: apps/backend
           file: apps/backend/Dockerfile
-          tags: ktb-chat-backend:latest
+          tags: backend:latest
           outputs: type=docker,dest=/tmp/backend.tar
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
