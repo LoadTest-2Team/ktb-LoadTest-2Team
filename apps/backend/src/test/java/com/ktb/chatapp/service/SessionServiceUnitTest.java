@@ -4,6 +4,7 @@ import com.ktb.chatapp.model.Session;
 import com.ktb.chatapp.service.session.SessionStore;
 import java.time.Instant;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,12 +12,15 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.redisson.api.RBucket;
+import org.redisson.api.RedissonClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,8 +35,23 @@ class SessionServiceUnitTest {
     @Mock
     private SessionStore sessionStore;
 
+    @Mock
+    private RedissonClient redissonClient;
+
+    @Mock
+    private RBucket<Session> sessionBucket;
+
     @InjectMocks
     private SessionService sessionService;
+
+    @BeforeEach
+    void setUpCache() {
+        // 이 테스트들은 캐시 도입 전부터 있던 sessionStore 동작 검증용이라, 캐시는 항상 비어있는
+        // 것으로 두고(콜드) sessionStore로 그대로 폴백하게 만든다 — 캐싱 자체의 히트/미스 분기는
+        // 이 파일이 다루는 범위가 아님.
+        lenient().when(redissonClient.<Session>getBucket(anyString())).thenReturn(sessionBucket);
+        lenient().when(sessionBucket.get()).thenReturn(null);
+    }
 
     @Test
     @DisplayName("세션 생성은 기존 사용자 세션을 제거한 뒤 새 세션을 저장한다")

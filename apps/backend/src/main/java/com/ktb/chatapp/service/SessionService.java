@@ -2,10 +2,13 @@ package com.ktb.chatapp.service;
 
 import com.ktb.chatapp.model.Session;
 import com.ktb.chatapp.service.session.SessionStore;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RBucket;
+import org.redisson.api.RedissonClient;
 import org.springframework.boot.convert.DurationStyle;
 import org.springframework.stereotype.Service;
 
@@ -17,11 +20,25 @@ import static com.ktb.chatapp.model.Session.SESSION_TTL;
 public class SessionService {
 
     private final SessionStore sessionStore;
+    private final RedissonClient redissonClient;
     public static final long SESSION_TTL_SEC = DurationStyle.detectAndParse(SESSION_TTL).getSeconds();
     private static final long SESSION_TIMEOUT = SESSION_TTL_SEC * 1000;
+    private static final String SESSION_CACHE_PREFIX = "session:cache:";
 
     private String generateSessionId() {
         return UUID.randomUUID().toString().replace("-", "");
+    }
+
+    private RBucket<Session> cacheBucket(String userId) {
+        return redissonClient.getBucket(SESSION_CACHE_PREFIX + userId);
+    }
+
+    private void cacheSession(Session session) {
+        cacheBucket(session.getUserId()).set(session, Duration.ofSeconds(SESSION_TTL_SEC));
+    }
+
+    private void evictCache(String userId) {
+        cacheBucket(userId).delete();
     }
 
     private SessionData toSessionData(Session session) {
@@ -41,7 +58,7 @@ public class SessionService {
 
             String sessionId = generateSessionId();
             long now = Instant.now().toEpochMilli();
-            
+
             Session session = Session.builder()
                     .userId(userId)
                     .sessionId(sessionId)
@@ -52,7 +69,8 @@ public class SessionService {
                     .build();
 
             session = sessionStore.save(session);
-            
+            cacheSession(session);
+
             SessionData sessionData = toSessionData(session);
 
             return SessionCreationResult.builder()
@@ -74,8 +92,13 @@ public class SessionService {
                 return SessionValidationResult.invalid("INVALID_PARAMETERS", "유효하지 않은 세션 파라미터");
             }
 
-            Session session = sessionStore.findByUserId(userId).orElse(null);
-            
+            boolean fromCache = true;
+            Session session = cacheBucket(userId).get();
+            if (session == null) {
+                fromCache = false;
+                session = sessionStore.findByUserId(userId).orElse(null);
+            }
+
             if (session == null) {
                 log.warn("No session found for userId: {}", userId);
                 return SessionValidationResult.invalid("INVALID_SESSION", "세션을 찾을 수 없습니다.");
@@ -97,7 +120,13 @@ public class SessionService {
             // Update last activity
             session.setLastActivity(now);
             session.setExpiresAt(Instant.now().plusSeconds(SESSION_TTL_SEC));
-            session = sessionStore.save(session);
+
+            if (fromCache) {
+                cacheSession(session);
+            } else {
+                session = sessionStore.save(session);
+                cacheSession(session);
+            }
 
             SessionData sessionData = toSessionData(session);
             return SessionValidationResult.valid(sessionData);
@@ -115,7 +144,12 @@ public class SessionService {
                 return;
             }
 
-            Session session = sessionStore.findByUserId(userId).orElse(null);
+            boolean fromCache = true;
+            Session session = cacheBucket(userId).get();
+            if (session == null) {
+                fromCache = false;
+                session = sessionStore.findByUserId(userId).orElse(null);
+            }
             if (session == null) {
                 log.debug("No session found to update last activity for user: {}", userId);
                 return;
@@ -123,8 +157,14 @@ public class SessionService {
 
             session.setLastActivity(Instant.now().toEpochMilli());
             session.setExpiresAt(Instant.now().plusSeconds(SESSION_TTL_SEC));
-            sessionStore.save(session);
-            
+
+            if (fromCache) {
+                cacheSession(session);
+            } else {
+                session = sessionStore.save(session);
+                cacheSession(session);
+            }
+
         } catch (Exception e) {
             log.error("Failed to update session activity for user: {}", userId, e);
         }
@@ -137,6 +177,7 @@ public class SessionService {
             } else {
                 sessionStore.deleteAll(userId);
             }
+            evictCache(userId);
         } catch (Exception e) {
             log.error("Session removal error for userId: {}, sessionId: {}", userId, sessionId, e);
             throw new RuntimeException("세션 삭제 중 오류가 발생했습니다.", e);
@@ -150,6 +191,7 @@ public class SessionService {
     public void removeAllUserSessions(String userId) {
         try {
             sessionStore.deleteAll(userId);
+            evictCache(userId);
         } catch (Exception e) {
             log.error("Remove all sessions error for userId: {}", userId, e);
             throw new RuntimeException("모든 세션 삭제 중 오류가 발생했습니다.", e);
@@ -158,8 +200,11 @@ public class SessionService {
 
     public SessionData getActiveSession(String userId) {
         try {
-            Session session = sessionStore.findByUserId(userId).orElse(null);
-            
+            Session session = cacheBucket(userId).get();
+            if (session == null) {
+                session = sessionStore.findByUserId(userId).orElse(null);
+            }
+
             if (session == null) {
                 return null;
             }
@@ -170,5 +215,5 @@ public class SessionService {
             return null;
         }
     }
-    
+
 }
