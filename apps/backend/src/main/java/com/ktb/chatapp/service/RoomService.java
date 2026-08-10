@@ -51,8 +51,11 @@ public class RoomService {
                 : userRepository.findAllById(userIds).stream()
                     .collect(Collectors.toMap(User::getId, user -> user));
 
+            Map<String, Integer> recentMessageCounts = recentMessageCounter.countRecentMessages(
+                rooms.stream().map(Room::getId).toList());
+
             List<RoomResponse> roomResponses = rooms.stream()
-                .map(room -> mapToRoomResponse(room, name, userById))
+                .map(room -> mapToRoomResponse(room, name, userById, recentMessageCounts.getOrDefault(room.getId(), 0)))
                 .sorted(Comparator.comparing(
                     RoomResponse::getCreatedAtDateTime,
                     Comparator.nullsLast(Comparator.reverseOrder())))
@@ -207,10 +210,12 @@ public class RoomService {
             : userRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(User::getId, user -> user));
 
-        return mapToRoomResponse(room, name, userById);
+        int recentMessageCount = recentMessageCounter.countRecentMessages(room.getId());
+
+        return mapToRoomResponse(room, name, userById, recentMessageCount);
     }
 
-    private RoomResponse mapToRoomResponse(Room room, String name, Map<String, User> userById) {
+    private RoomResponse mapToRoomResponse(Room room, String name, Map<String, User> userById, int recentMessageCount) {
         if (room == null) return null;
 
         User creator = room.getCreator() != null ? userById.get(room.getCreator()) : null;
@@ -219,8 +224,6 @@ public class RoomService {
             .map(userById::get)
             .filter(user -> user != null)
             .toList();
-
-        int recentMessageCount = recentMessageCounter.countRecentMessages(room.getId());
 
         return RoomResponse.builder()
             .id(room.getId())
