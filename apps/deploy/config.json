@@ -16,7 +16,7 @@
         "image_file_name":"backend.tar",
         "image_file_dir_path":"static/main/docker-images/",
         "uuid":"b1c2d3e4-5f6g-7h8i-9j0k-1l2m3n4o5p6q",
-        "init_bash":"docker run -d --name backend -p $BACKEND_PORT:$BACKEND_PORT -e DB_HOST=$DB_HOST -e DB_PORT=$DB_PORT -e DB_USER=$DB_USER -e DB_PASSWORD=$DB_PASSWORD backend:latest"
+        "init_bash":"docker run -d --name backend -p $BACKEND_PORT:$BACKEND_PORT -p $WS_PORT:$WS_PORT -e JWT_SECRET=$JWT_SECRET -e ENCRYPTION_KEY=$ENCRYPTION_KEY -e ENCRYPTION_SALT=$ENCRYPTION_SALT -e WS_PORT=$WS_PORT backend:latest"
     },
     "frontend":{
         "image_file_name":"frontend.tar",
