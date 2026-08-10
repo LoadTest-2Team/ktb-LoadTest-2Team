@@ -67,5 +67,5 @@ jobs:
           S3_BUCKET: ${{ vars.S3_BUCKET }}
         run: |
           aws s3 cp "/tmp/frontend.tar" \
-            "s3://${S3_BUCKET}/main/docker-images/frontend.tar" \
+            "s3://${S3_BUCKET}/static/main/docker-images/frontend.tar" \
             --only-show-errors
