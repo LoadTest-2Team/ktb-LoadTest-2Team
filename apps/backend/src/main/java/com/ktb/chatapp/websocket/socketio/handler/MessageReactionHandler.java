@@ -6,12 +6,16 @@ import com.corundumstudio.socketio.annotation.OnEvent;
 import com.ktb.chatapp.dto.MessageReactionRequest;
 import com.ktb.chatapp.dto.MessageReactionResponse;
 import com.ktb.chatapp.model.Message;
-import com.ktb.chatapp.repository.MessageRepository;
 import com.ktb.chatapp.websocket.socketio.SocketUser;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
 import static com.ktb.chatapp.websocket.socketio.SocketIOEvents.*;
@@ -25,10 +29,10 @@ import static com.ktb.chatapp.websocket.socketio.SocketIOEvents.*;
 @ConditionalOnProperty(name = "socketio.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 public class MessageReactionHandler {
-    
+
     private final SocketIOServer socketIOServer;
-    private final MessageRepository messageRepository;
-    
+    private final MongoTemplate mongoTemplate;
+
     @OnEvent(MESSAGE_REACTION)
     public void handleMessageReaction(SocketIOClient client, MessageReactionRequest data) {
         try {
@@ -38,25 +42,32 @@ public class MessageReactionHandler {
                 return;
             }
 
-            Message message = messageRepository.findById(data.getMessageId()).orElse(null);
+            String reactionField = "reactions." + data.getReaction();
+            Update update = switch (data.getType()) {
+                case "add" -> new Update().addToSet(reactionField, userId);
+                case "remove" -> new Update().pull(reactionField, userId);
+                case null, default -> null;
+            };
+
+            if (update == null) {
+                client.sendEvent(ERROR, Map.of("message", "지원하지 않는 리액션 타입입니다."));
+                return;
+            }
+
+            // read(findById) → 메모리에서 수정 → save() 통으로 덮어쓰기 방식은 두 유저가
+            // 거의 동시에 같은 메시지에 리액션을 달면 나중 저장이 먼저 것을 덮어써서 유실된다.
+            // findAndModify로 addToSet/pull을 원자적으로 적용해 경쟁 상태를 없앤다.
+            Query query = Query.query(Criteria.where("_id").is(data.getMessageId()));
+            FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true);
+            Message message = mongoTemplate.findAndModify(query, update, options, Message.class);
+
             if (message == null) {
                 client.sendEvent(ERROR, Map.of("message", "메시지를 찾을 수 없습니다."));
                 return;
             }
 
-            switch (data.getType()) {
-                case "add" -> message.addReaction(data.getReaction(), userId);
-                case "remove" -> message.removeReaction(data.getReaction(), userId);
-                case null, default -> {
-                    client.sendEvent(ERROR, Map.of("message", "지원하지 않는 리액션 타입입니다."));
-                    return;
-                }
-            }
-
             log.debug("Message reaction processed - type: {}, reaction: {}, messageId: {}, userId: {}",
                 data.getType(), data.getReaction(), message.getId(), userId);
-
-            messageRepository.save(message);
 
             MessageReactionResponse response = new MessageReactionResponse(
                 message.getId(),
