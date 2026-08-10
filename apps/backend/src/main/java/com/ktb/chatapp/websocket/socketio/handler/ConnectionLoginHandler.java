@@ -170,6 +170,6 @@ public class ConnectionLoginHandler {
             } catch (Exception e) {
                 log.error("Error sending delayed SESSION_ENDED notification", e);
             }
-        }, 10, TimeUnit.SECONDS);
+        }, 2, TimeUnit.SECONDS);
     }
 }

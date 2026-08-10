@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import { Toast } from '@/components/Toast';
 
 const CLEANUP_REASONS = {
   DISCONNECT: 'disconnect',
@@ -147,7 +148,7 @@ export class SocketService {
         return;
       }
 
-      // TODO: 향후 중복 로그인 처리 필요 시 AuthContext에서 구현
+      Toast.warning('다른 기기에서 로그인이 감지되었습니다. 이 세션은 곧 종료됩니다.');
     });
 
     socket.on('error', (error) => {
