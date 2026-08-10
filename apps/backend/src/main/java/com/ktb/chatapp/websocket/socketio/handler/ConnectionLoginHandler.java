@@ -8,10 +8,10 @@ import com.ktb.chatapp.websocket.socketio.SocketUser;
 import com.ktb.chatapp.websocket.socketio.UserRooms;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -33,6 +33,7 @@ public class ConnectionLoginHandler {
     private final UserRooms userRooms;
     private final RoomJoinHandler roomJoinHandler;
     private final RoomLeaveHandler roomLeaveHandler;
+    private final ScheduledExecutorService scheduledExecutor;
 
     public ConnectionLoginHandler(
             SocketIOServer socketIOServer,
@@ -40,12 +41,14 @@ public class ConnectionLoginHandler {
             UserRooms userRooms,
             RoomJoinHandler roomJoinHandler,
             RoomLeaveHandler roomLeaveHandler,
-            MeterRegistry meterRegistry) {
+            MeterRegistry meterRegistry,
+            ScheduledExecutorService socketIoScheduledExecutor) {
         this.socketIOServer = socketIOServer;
         this.connectedUsers = connectedUsers;
         this.userRooms = userRooms;
         this.roomJoinHandler = roomJoinHandler;
         this.roomLeaveHandler = roomLeaveHandler;
+        this.scheduledExecutor = socketIoScheduledExecutor;
 
         // Register gauge metric for concurrent users
         Gauge.builder("socketio.concurrent.users", connectedUsers::size)
@@ -60,7 +63,6 @@ public class ConnectionLoginHandler {
         String userId = user.id();
         
         try {
-            // 다른 노드에 접속된 사용자는 통보 불가
             notifyDuplicateLogin(client, userId);
             client.set("user", user);
             
@@ -137,8 +139,12 @@ public class ConnectionLoginHandler {
     }
     
     /**
-     * TODO 멀티 클러스터에서 동작 안함
-     * socketIOServer.getRoomOperations("user:" + userId) 로 처리 변경.
+     * socketIOServer.getClient()는 이 인스턴스에 로컬로 붙어있는 클라이언트만 찾을 수 있어서
+     * 기존 세션이 다른 인스턴스에 붙어있으면 못 찾았다 (멀티 클러스터에서  불가).
+     * 모든 클라이언트는 자기 sessionId와 같은 이름의 room에 자동 가입돼 있으므로,
+     * 그 room으로 보내면 어느 인스턴스에 붙어있든 클러스터 전체에서 정확히 그 세션에만 전달된다.
+     * ("user:" + userId room은 새 클라이언트도 곧 같이 들어오므로 10초 뒤 SESSION_ENDED가
+     * 새 세션까지 잘못 맞힐 수 있어 쓰지 않는다.)
      */
     private void notifyDuplicateLogin(SocketIOClient client, String userId) {
         var socketUser = connectedUsers.get(userId);
@@ -146,30 +152,24 @@ public class ConnectionLoginHandler {
             return;
         }
         String existingSocketId = socketUser.socketId();
-        SocketIOClient existingClient = socketIOServer.getClient(UUID.fromString(existingSocketId));
-        if (existingClient == null) {
-            return;
-        }
-        
-        // Send duplicate login notification
-        existingClient.sendEvent(DUPLICATE_LOGIN, Map.of(
+
+        String deviceInfo = client.getHandshakeData().getHttpHeaders().get("User-Agent");
+        socketIOServer.getRoomOperations(existingSocketId).sendEvent(DUPLICATE_LOGIN, Map.of(
                 "type", "new_login_attempt",
-                "deviceInfo", client.getHandshakeData().getHttpHeaders().get("User-Agent"),
+                "deviceInfo", deviceInfo != null ? deviceInfo : "unknown",
                 "ipAddress", client.getRemoteAddress().toString(),
                 "timestamp", System.currentTimeMillis()
         ));
-        
-        new Thread(() -> {
+
+        scheduledExecutor.schedule(() -> {
             try {
-                Thread.sleep(Duration.ofSeconds(10));
-                existingClient.sendEvent(SESSION_ENDED, Map.of(
+                socketIOServer.getRoomOperations(existingSocketId).sendEvent(SESSION_ENDED, Map.of(
                         "reason", "duplicate_login",
                         "message", "다른 기기에서 로그인하여 현재 세션이 종료되었습니다."
                 ));
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.error("Error in duplicate login notification thread", e);
+            } catch (Exception e) {
+                log.error("Error sending delayed SESSION_ENDED notification", e);
             }
-        }).start();
+        }, 10, TimeUnit.SECONDS);
     }
 }
