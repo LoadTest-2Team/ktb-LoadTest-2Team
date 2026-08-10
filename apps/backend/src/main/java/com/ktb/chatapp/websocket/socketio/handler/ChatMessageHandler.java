@@ -149,11 +149,16 @@ public class ChatMessageHandler {
             }
 
             String messageType = data.getMessageType();
-            Message message = switch (messageType) {
-                case "file" -> handleFileMessage(roomId, socketUser.id(), messageContent, data.getFileData());
-                case "text" -> handleTextMessage(roomId, socketUser.id(), messageContent);
+            File resolvedFile = null;
+            Message message;
+            switch (messageType) {
+                case "file" -> {
+                    resolvedFile = resolveAndValidateFile(socketUser.id(), data.getFileData());
+                    message = buildFileMessage(roomId, socketUser.id(), messageContent, resolvedFile);
+                }
+                case "text" -> message = handleTextMessage(roomId, socketUser.id(), messageContent);
                 default -> throw new IllegalArgumentException("Unsupported message type: " + messageType);
-            };
+            }
 
             if (message == null) {
                 log.warn("Empty message - ignoring. room: {}, userId: {}, messageType: {}", roomId, socketUser.id(), messageType);
@@ -162,7 +167,7 @@ public class ChatMessageHandler {
             }
 
             Message savedMessage = messageRepository.save(message);
-            MessageResponse messageResponse = createMessageResponse(savedMessage, sender);
+            MessageResponse messageResponse = createMessageResponse(savedMessage, sender, resolvedFile);
 
             socketIOServer.getRoomOperations(roomId)
                     .sendEvent(MESSAGE, messageResponse);
@@ -193,7 +198,7 @@ public class ChatMessageHandler {
         }
     }
 
-    private Message handleFileMessage(String roomId, String userId, MessageContent messageContent, Map<String, Object> fileData) {
+    private File resolveAndValidateFile(String userId, Map<String, Object> fileData) {
         if (fileData == null || fileData.get("_id") == null) {
             throw new IllegalArgumentException("파일 데이터가 올바르지 않습니다.");
         }
@@ -205,15 +210,19 @@ public class ChatMessageHandler {
             throw new IllegalStateException("파일을 찾을 수 없거나 접근 권한이 없습니다.");
         }
 
+        return file;
+    }
+
+    private Message buildFileMessage(String roomId, String userId, MessageContent messageContent, File file) {
         Message message = new Message();
         message.setRoomId(roomId);
         message.setSenderId(userId);
         message.setType(MessageType.file);
-        message.setFileId(fileId);
+        message.setFileId(file.getId());
         message.setContent(messageContent.getTrimmedContent());
         message.setTimestamp(LocalDateTime.now());
         message.setMentions(messageContent.aiMentions());
-        
+
         // 메타데이터는 Map<String, Object>
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("fileType", file.getMimetype());
@@ -240,7 +249,7 @@ public class ChatMessageHandler {
         return message;
     }
 
-    private MessageResponse createMessageResponse(Message message, User sender) {
+    private MessageResponse createMessageResponse(Message message, User sender, File resolvedFile) {
         var messageResponse = new MessageResponse();
         messageResponse.setId(message.getId());
         messageResponse.setRoomId(message.getRoomId());
@@ -252,8 +261,10 @@ public class ChatMessageHandler {
         messageResponse.setMetadata(message.getMetadata());
 
         if (message.getFileId() != null) {
-            fileRepository.findById(message.getFileId())
-                    .ifPresent(file -> messageResponse.setFile(FileResponse.from(file)));
+            File file = resolvedFile != null ? resolvedFile : fileRepository.findById(message.getFileId()).orElse(null);
+            if (file != null) {
+                messageResponse.setFile(FileResponse.from(file));
+            }
         }
 
         return messageResponse;
