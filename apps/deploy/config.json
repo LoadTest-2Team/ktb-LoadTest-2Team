@@ -9,25 +9,25 @@
     "mongodb":{
         "image_file_name":"mongodb.tar",
         "image_file_dir_path":"main/images/",
-        "uuid":"f1e3c5a0-8b6d-4f7e-9c2b-1a2b3c4d5e6f",
-        "init_bash":"docker run -d --name mongodb -p $DB_PORT:$DB_PORT -v $MONGODB_DATA_DIR:/data/db -e MONGO_INITDB_ROOT_USERNAME=$DB_USER -e MONGO_INITDB_ROOT_PASSWORD=$DB_PASSWORD mongodb:latest"
+        "uuid":"f1e3c8d0-5b6a-4f9e-8c7b-2d3e4f5a6b7c",
+        "init_bash":"docker run -d --name mongodb -p $DB_PORT:$DB_PORT -v /data/db -e MONGO_INITDB_ROOT_USERNAME=$DB_USER -e MONGO_INITDB_ROOT_PASSWORD=$DB_PASSWORD mongodb:latest"
     },
     "backend":{
         "image_file_name":"backend.tar",
         "image_file_dir_path":"main/images/",
-        "uuid":"a3da51f3-c791-4a65-87f5-fd7fffe4661e",
+        "uuid":"d3f4e5a6-7b8c-4d9e-8f0a-1b2c3d4e5f6g",
         "init_bash":"docker run -d --name backend -p $BACKEND_PORT:$BACKEND_PORT -e DB_HOST=$DB_HOST -e DB_PORT=$DB_PORT -e DB_USER=$DB_USER -e DB_PASSWORD=$DB_PASSWORD backend:latest"
     },
     "frontend":{
         "image_file_name":"frontend.tar",
         "image_file_dir_path":"main/images/",
-        "uuid":"6ba974ef-7734-4fdd-a1e7-d0eb92d8de72",
+        "uuid":"a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p",
         "init_bash":"docker run -d --name frontend -p $FRONTEND_PORT:$FRONTEND_PORT frontend:latest"
     },
     "redis":{
         "image_file_name":"redis.tar",
         "image_file_dir_path":"main/images/",
-        "uuid":"605b6b56-084a-439e-a160-7c0c5eb8cd91",
+        "uuid":"b1c2d3e4-5f6g-7h8i-9j0k-1l2m3n4o5p6q",
         "init_bash":"docker run -d --name redis -p $REDIS_PORT:$REDIS_PORT redis:latest"
     }
 }

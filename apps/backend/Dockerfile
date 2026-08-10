@@ -30,4 +30,5 @@ COPY --from=builder --chown=app:app /workspace/target/*.jar /app/app.jar
 USER app
 
 EXPOSE 5001 5002
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=85.0", "-jar", "app.jar"]
+CMD []
