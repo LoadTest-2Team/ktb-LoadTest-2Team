@@ -1,27 +1,33 @@
 {
     "ktb-loadtest-team-2-ssh":"backend",
-    "database":{
-        "image_file_name":"database.tar",
+    "ktb-loadtest-team-2-worker-1":"mongodb",
+    "ktb-loadtest-team-2-worker-2":"redis",
+    "ktb-loadtest-team-2-worker-3":"frontend",
+    "ktb-loadtest-team-2-worker-4":"backend",
+    "ktb-loadtest-team-2-worker-5":"backend",
+
+    "mongodb":{
+        "image_file_name":"mongodb.tar",
         "image_file_dir_path":"main/images/",
-        "uuid":"3db5d8ea-7b51-46ba-a56c-b01bfc7a89fd",
-        "init_bash":"docker run -d --name database -p 3306:3306 -e MYSQL_ROOT_PASSWORD=1234 mysql:8.0"
+        "uuid":"3db5d8ea-7b51-46ba-a56c-b01bfc7a89fe",
+        "init_bash":"docker run -d --name mongodb -p $DB_PORT:$DB_PORT -v $MONGODB_DATA_DIR:/data/db -e MONGO_INITDB_ROOT_USERNAME=$DB_USER -e MONGO_INITDB_ROOT_PASSWORD=$DB_PASSWORD mongodb:latest"
     },
     "backend":{
         "image_file_name":"backend.tar",
         "image_file_dir_path":"main/images/",
-        "uuid":"a3da51f3-c791-4a65-87f5-fd7fffe46616",
-        "init_bash":"docker run -d --name backend -p 8080:8080 -e DB_HOST=database -e DB_PORT=3306 -e DB_USER=root -e DB_PASSWORD=1234 backend:latest"
+        "uuid":"a3da51f3-c791-4a65-87f5-fd7fffe4661e",
+        "init_bash":"docker run -d --name backend -p $BACKEND_PORT:$BACKEND_PORT -e DB_HOST=$DB_HOST -e DB_PORT=$DB_PORT -e DB_USER=$DB_USER -e DB_PASSWORD=$DB_PASSWORD backend:latest"
     },
     "frontend":{
         "image_file_name":"frontend.tar",
         "image_file_dir_path":"main/images/",
         "uuid":"6ba974ef-7734-4fdd-a1e7-d0eb92d8de72",
-        "init_bash":"docker run -d --name frontend -p 80:80 frontend:latest"
+        "init_bash":"docker run -d --name frontend -p $FRONTEND_PORT:$FRONTEND_PORT frontend:latest"
     },
     "redis":{
         "image_file_name":"redis.tar",
         "image_file_dir_path":"main/images/",
         "uuid":"605b6b56-084a-439e-a160-7c0c5eb8cd91",
-        "init_bash":"docker run -d --name redis -p 6379:6379 redis:latest"
+        "init_bash":"docker run -d --name redis -p $REDIS_PORT:$REDIS_PORT redis:latest"
     }
 }
