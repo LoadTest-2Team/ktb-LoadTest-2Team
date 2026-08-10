@@ -9,7 +9,7 @@
     "mongodb":{
         "image_file_name":"mongodb.tar",
         "image_file_dir_path":"main/images/",
-        "uuid":"3db5d8ea-7b51-46ba-a56c-b01bfc7a89fe",
+        "uuid":"f1e3c5a0-8b6d-4f7e-9c2b-1a2b3c4d5e6f",
         "init_bash":"docker run -d --name mongodb -p $DB_PORT:$DB_PORT -v $MONGODB_DATA_DIR:/data/db -e MONGO_INITDB_ROOT_USERNAME=$DB_USER -e MONGO_INITDB_ROOT_PASSWORD=$DB_PASSWORD mongodb:latest"
     },
     "backend":{
