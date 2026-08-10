@@ -27,6 +27,11 @@ COPY apps/frontend/services apps/frontend/services
 COPY apps/frontend/styles apps/frontend/styles
 COPY apps/frontend/utils apps/frontend/utils
 
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_SOCKET_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL}
+
 RUN pnpm --dir apps/frontend build
 
 # Stage 2: Runner
