@@ -200,7 +200,7 @@ class FileControllerTest {
         String requestBody = "{\"originalFilename\":\"" + ORIGINAL_NAME + "\","
                 + "\"mimetype\":\"image/png\",\"size\":11}";
 
-        mockMvc.perform(post("/api/files/presign-upload")
+        mockMvc.perform(post("/api/files/upload")
                         .principal(PRINCIPAL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
@@ -221,7 +221,7 @@ class FileControllerTest {
         String requestBody = "{\"originalFilename\":\"" + ORIGINAL_NAME + "\","
                 + "\"mimetype\":\"image/png\",\"size\":11}";
 
-        mockMvc.perform(post("/api/files/presign-upload")
+        mockMvc.perform(post("/api/files/upload")
                         .principal(PRINCIPAL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
