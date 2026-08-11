@@ -84,38 +84,20 @@ class FileService {
     this.activeUploads.set(file.name, source);
 
     try {
-      // 1) 백엔드에 presigned 업로드 URL 발급 요청 — 파일 바이트는 아직 보내지 않는다.
-      const presignEndpoint = this.baseUrl ?
-        `${this.baseUrl}/api/files/presign-upload` :
-        '/api/files/presign-upload';
+      // 백엔드에 파일 바이트를 직접 멀티파트로 올린다.
+      const uploadEndpoint = this.baseUrl ?
+        `${this.baseUrl}/api/files/upload` :
+        '/api/files/upload';
+
+      const formData = new FormData();
+      formData.append('file', file);
 
       // token과 sessionId는 axios 인터셉터에서 자동으로 추가되므로
       // 여기서는 명시적으로 전달하지 않아도 됩니다
-      const presignResponse = await axiosInstance.post(presignEndpoint, {
-        originalFilename: file.name,
-        mimetype: file.type,
-        size: file.size
-      }, {
+      const response = await axiosInstance.post(uploadEndpoint, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
         cancelToken: source.token,
-        withCredentials: true
-      });
-
-      if (!presignResponse.data || !presignResponse.data.success) {
-        this.activeUploads.delete(file.name);
-        return {
-          success: false,
-          message: presignResponse.data?.message || '업로드 URL 발급에 실패했습니다.'
-        };
-      }
-
-      const { file: fileData, uploadUrl, requiredHeaders } = presignResponse.data;
-
-      // 2) 발급받은 URL로 브라우저가 스토리지에 직접 PUT한다. 앱 인증 헤더(x-auth-token 등)가
-      //    스토리지로 새어나가지 않도록 인터셉터가 붙은 axiosInstance가 아닌 axios를 그대로 쓴다.
-      await axios.put(uploadUrl, file, {
-        headers: requiredHeaders || { 'Content-Type': file.type },
-        timeout: 30000,
-        cancelToken: source.token,
+        withCredentials: true,
         onUploadProgress: (progressEvent) => {
           if (onProgress) {
             const percentCompleted = Math.round(
@@ -127,6 +109,15 @@ class FileService {
       });
 
       this.activeUploads.delete(file.name);
+
+      if (!response.data || !response.data.success) {
+        return {
+          success: false,
+          message: response.data?.message || '파일 업로드에 실패했습니다.'
+        };
+      }
+
+      const fileData = response.data.file;
 
       return {
         success: true,
