@@ -52,7 +52,8 @@ public class RoomResponse {
     @Schema(description = "채팅방 생성 시간 (ISO 8601 형식)", example = "2025-11-18T12:34:56.789Z")
     @JsonGetter("createdAt")
     public String getCreatedAt() {
-        return createdAtDateTime
+        LocalDateTime value = createdAtDateTime != null ? createdAtDateTime : LocalDateTime.now();
+        return value
                 .atZone(java.time.ZoneId.systemDefault())
                 .toInstant()
                 .toString();
