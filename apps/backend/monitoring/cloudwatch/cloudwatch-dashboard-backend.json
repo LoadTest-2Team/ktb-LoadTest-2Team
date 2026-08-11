@@ -1,0 +1,548 @@
+{
+  "start": "-PT3H",
+  "periodOverride": "inherit",
+  "widgets": [
+    {
+      "type": "text",
+      "x": 0,
+      "y": 0,
+      "width": 24,
+      "height": 3,
+      "properties": {
+        "markdown": "# KTB Backend Load Test Dashboard\n동적 Metrics Insights/Search 쿼리로 최대 20개 backend host를 자동 반영합니다. RPS/TPS와 카운터형 메트릭은 초당 변화량(`RATE`)으로 표시하며, HTTP latency는 성공 응답(2xx/3xx)만 포함합니다."
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 3,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "## Traffic"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 4,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "Total HTTP RPS",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "RATE(SUM(SEARCH('{KTB/Application,application,host} MetricName=\"http_server_success_latency_seconds_count\" application=\"ktb-chat-backend\"', 'Maximum', 60))) + RATE(SUM(SEARCH('{KTB/Application,application,host,status_class} MetricName=\"http_server_responses_total\" application=\"ktb-chat-backend\"', 'Maximum', 60)))",
+              "label": "Total RPS (2xx/3xx + 4xx/5xx)",
+              "id": "rps"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "label": "Requests/Second", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 4,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "Concurrent Socket.IO sessions",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "SELECT MAX(socketio_concurrent_users) FROM \"KTB/Application\" WHERE application = 'ktb-chat-backend' GROUP BY host ORDER BY MAX() DESC LIMIT 20",
+              "label": "__verbose__",
+              "id": "q1"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "label": "Sessions", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 4,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "Socket.IO TPS",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "RATE(SUM(SEARCH('{KTB/Application,application,host,status,message_type} MetricName=\"socketio_messages_total\" application=\"ktb-chat-backend\"', 'Maximum', 60)))",
+              "label": "Messages/Second",
+              "id": "tps"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "label": "Transactions/Second", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 10,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "Network receive throughput",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "SELECT SUM(net_bytes_recv) FROM \"KTB/EC2\" GROUP BY InstanceId ORDER BY MAX() DESC LIMIT 20",
+              "label": "__verbose__",
+              "id": "q1",
+              "visible": false
+            }
+          ],
+          [
+            {
+              "expression": "RATE(q1)",
+              "label": "RX",
+              "id": "rx"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "label": "Bytes/Second", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 10,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "Network transmit throughput",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "SELECT SUM(net_bytes_sent) FROM \"KTB/EC2\" GROUP BY InstanceId ORDER BY MAX() DESC LIMIT 20",
+              "label": "__verbose__",
+              "id": "q1",
+              "visible": false
+            }
+          ],
+          [
+            {
+              "expression": "RATE(q1)",
+              "label": "TX",
+              "id": "tx"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "label": "Bytes/Second", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 16,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "## Saturation — 100% 도달 전 병목 징후"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 17,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "CPU utilization — Role=backend",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "SELECT AVG(CPUUtilization) FROM SCHEMA(\"AWS/EC2\", InstanceId) WHERE tag.Role = 'backend' GROUP BY InstanceId ORDER BY MAX() DESC LIMIT 20",
+              "label": "__verbose__",
+              "id": "q1"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "max": 100, "label": "Percent", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 17,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "Memory used",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "SELECT AVG(mem_used_percent) FROM \"KTB/EC2\" GROUP BY InstanceId ORDER BY MAX() DESC LIMIT 20",
+              "label": "__verbose__",
+              "id": "q1"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "max": 100, "label": "Percent", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 23,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "Tomcat busy threads",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "SELECT MAX(tomcat_threads_busy_threads) FROM \"KTB/Application\" WHERE application = 'ktb-chat-backend' GROUP BY host, name ORDER BY MAX() DESC LIMIT 20",
+              "label": "__verbose__",
+              "id": "q1"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "label": "Threads", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 23,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "Executor active threads",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "SELECT MAX(executor_active_threads) FROM \"KTB/Application\" WHERE application = 'ktb-chat-backend' GROUP BY host, name ORDER BY MAX() DESC LIMIT 20",
+              "label": "__verbose__",
+              "id": "q1"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "label": "Threads", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 23,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "Executor queue length",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "SELECT MAX(executor_queued_tasks) FROM \"KTB/Application\" WHERE application = 'ktb-chat-backend' GROUP BY host, name ORDER BY MAX() DESC LIMIT 20",
+              "label": "__verbose__",
+              "id": "q1"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "label": "Tasks", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 29,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "Disk I/O operations in progress",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "SELECT SUM(diskio_iops_in_progress) FROM \"KTB/EC2\" GROUP BY InstanceId ORDER BY MAX() DESC LIMIT 20",
+              "label": "__verbose__",
+              "id": "q1"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "label": "Operations", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 29,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "Disk I/O busy time rate",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "SELECT SUM(diskio_io_time) FROM \"KTB/EC2\" GROUP BY InstanceId ORDER BY MAX() DESC LIMIT 20",
+              "label": "__verbose__",
+              "id": "q1",
+              "visible": false
+            }
+          ],
+          [
+            {
+              "expression": "RATE(q1)",
+              "label": "Disk busy time",
+              "id": "diskrate"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "label": "Milliseconds/Second", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 35,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "## Latency — 성공 응답(2xx/3xx), 목표 1초"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 36,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "Successful HTTP p95 / p99 latency",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "SELECT MAX(http_server_success_latency_seconds) FROM \"KTB/Application\" WHERE application = 'ktb-chat-backend' GROUP BY host, quantile ORDER BY MAX() DESC LIMIT 40",
+              "label": "__verbose__",
+              "id": "q1"
+            }
+          ]
+        ],
+        "annotations": {
+          "horizontal": [
+            {"label": "SLO target: 1s", "value": 1, "color": "#d62728"}
+          ]
+        },
+        "yAxis": {
+          "left": {"min": 0, "label": "Seconds", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 36,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "Average successful HTTP latency",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "RATE(SUM(SEARCH('{KTB/Application,application,host} MetricName=\"http_server_success_latency_seconds_sum\" application=\"ktb-chat-backend\"', 'Maximum', 60))) / RATE(SUM(SEARCH('{KTB/Application,application,host} MetricName=\"http_server_success_latency_seconds_count\" application=\"ktb-chat-backend\"', 'Maximum', 60)))",
+              "label": "Fleet average latency",
+              "id": "avglatency"
+            }
+          ]
+        ],
+        "annotations": {
+          "horizontal": [
+            {"label": "SLO target: 1s", "value": 1, "color": "#d62728"}
+          ]
+        },
+        "yAxis": {
+          "left": {"min": 0, "label": "Seconds", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "text",
+      "x": 0,
+      "y": 42,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "## Error — 4xx / 5xx / 1초 SLO 초과"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 43,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "HTTP 4xx / 5xx RPS",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "SELECT SUM(http_server_responses_total) FROM \"KTB/Application\" WHERE application = 'ktb-chat-backend' GROUP BY host, status_class ORDER BY MAX() DESC LIMIT 40",
+              "label": "__verbose__",
+              "id": "q1",
+              "visible": false
+            }
+          ],
+          [
+            {
+              "expression": "RATE(q1)",
+              "label": "Error RPS",
+              "id": "errorrate"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "label": "Errors/Second", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 43,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "SLO exceeded RPS (>1s)",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "SELECT SUM(http_server_success_slo_exceeded_total) FROM \"KTB/Application\" WHERE application = 'ktb-chat-backend' GROUP BY host, threshold ORDER BY MAX() DESC LIMIT 20",
+              "label": "__verbose__",
+              "id": "q1",
+              "visible": false
+            }
+          ],
+          [
+            {
+              "expression": "RATE(q1)",
+              "label": "SLO exceeded/Second",
+              "id": "slorate"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "label": "Requests/Second", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 43,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "view": "timeSeries",
+        "region": "ap-northeast-2",
+        "title": "SLO exceeded ratio",
+        "period": 60,
+        "metrics": [
+          [
+            {
+              "expression": "100 * RATE(SUM(SEARCH('{KTB/Application,application,host,threshold} MetricName=\"http_server_success_slo_exceeded_total\" application=\"ktb-chat-backend\"', 'Maximum', 60))) / RATE(SUM(SEARCH('{KTB/Application,application,host} MetricName=\"http_server_success_latency_seconds_count\" application=\"ktb-chat-backend\"', 'Maximum', 60)))",
+              "label": "SLO exceeded (%)",
+              "id": "sloratio"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {"min": 0, "max": 100, "label": "Percent", "showUnits": false}
+        },
+        "legend": {"position": "bottom"}
+      }
+    }
+  ]
+}

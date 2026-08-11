@@ -33,30 +33,19 @@ eval "$(echo "$CONFIG_CONTEXT" | jq -r ".\"$ROLE\" | to_entries | .[] | \"\(.key
 
 mkdir -p "$BASE_DIR"
 
-CLOUDWATCH_AGENT_UUID_FILE_PATH="$BASE_DIR/cloudwatch-agent.uuid"
-CURRENT_CLOUDWATCH_AGENT_UUID=$(
-    cat "$CLOUDWATCH_AGENT_UUID_FILE_PATH" 2>/dev/null || echo "None"
-)
+CLOUDWATCH_AGENT_CTL="/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl"
 
-if [ -n "${CLOUDWATCH_AGENT_UUID:-}" ] &&
-   [ "$CURRENT_CLOUDWATCH_AGENT_UUID" != "$CLOUDWATCH_AGENT_UUID" ]; then
-
-    if [ -z "${CLOUDWATCH_AGENT_INIT_BASH:-}" ]; then
-        echo "오류: CLOUDWATCH_AGENT_INIT_BASH가 설정되지 않았습니다."
-        exit 1
-    fi
-
-    echo "CloudWatch Agent 설치 또는 설정을 적용합니다."
+if [ -n "${CLOUDWATCH_AGENT_INIT_BASH:-}" ] && [ ! -x "$CLOUDWATCH_AGENT_CTL" ]; then
+    echo "CloudWatch Agent가 없어 설치합니다."
 
     if ! eval "$CLOUDWATCH_AGENT_INIT_BASH"; then
         echo "오류: CloudWatch Agent 설치에 실패했습니다."
         exit 1
     fi
 
-    echo "$CLOUDWATCH_AGENT_UUID" > "$CLOUDWATCH_AGENT_UUID_FILE_PATH"
-    echo "CloudWatch Agent 적용 완료: $CLOUDWATCH_AGENT_UUID"
-else
-    echo "CloudWatch Agent가 이미 적용되어 있습니다."
+    echo "CloudWatch Agent 설치 완료"
+elif [ -n "${CLOUDWATCH_AGENT_INIT_BASH:-}" ]; then
+    echo "CloudWatch Agent가 이미 설치되어 있습니다."
 fi
 
 CURRENT_IMAGE_UUID=$(cat "$BASE_DIR/$CURRENT_IMAGE_UUID_FILE_PATH" 2>/dev/null || echo "None")
