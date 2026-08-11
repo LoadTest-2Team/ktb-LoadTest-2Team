@@ -21,8 +21,8 @@ WORKDIR /app
 # 애플리케이션은 권한이 제한된 전용 사용자로 실행한다.
 RUN groupadd --system --gid 10001 app && \
     useradd --system --uid 10001 --gid app --home-dir /app --shell /usr/sbin/nologin app && \
-    mkdir -p /app/uploads && \
-    chown app:app /app/uploads
+    mkdir -p /app/uploads /app/logs && \
+    chown app:app /app/uploads /app/logs
 
 # 빌드 스테이지의 실행 가능한 JAR만 런타임 이미지에 포함한다.
 COPY --from=builder --chown=app:app /workspace/target/*.jar /app/app.jar

@@ -3,7 +3,7 @@
     "ktb-loadtest-team-2-worker-1":"mongodb",
     "ktb-loadtest-team-2-worker-2":"redis",
     "ktb-loadtest-team-2-worker-3":"frontend",
-    "ktb-loadtest-team-2-worker-4":"redis",
+    "ktb-loadtest-team-2-worker-4":"backend",
     "ktb-loadtest-team-2-worker-5":"backend",
 
     "mongodb":{
@@ -16,6 +16,8 @@
         "image_file_name":"backend.tar",
         "image_file_dir_path":"static/main/docker-images/",
         "uuid":"b1c2d3e4-5f6g-7h8i-9j0k-1l2m3n4o5p6rtt",
+        "cloudwatch_agent_uuid": "e1f2g3h4-5i6j-7k8l-9m0n-1o2p3q4r5s6t",
+        "cloudwatch_agent_init_bash": "mkdir -p /home/ubuntu/cloudwatch-agent-deploy && aws s3 cp s3://$S3_BUCKET_NAME/static/main/monitoring/cloudwatch-backend.tar.gz /tmp/cloudwatch-backend.tar.gz && tar -xzf /tmp/cloudwatch-backend.tar.gz -C /home/ubuntu/cloudwatch-agent-deploy && chmod +x /home/ubuntu/cloudwatch-agent-deploy/install-cloudwatch-agent.sh && sudo env AWS_REGION=ap-northeast-2 LOG_GROUP_PREFIX=/ktb/prod /home/ubuntu/cloudwatch-agent-deploy/install-cloudwatch-agent.sh backend",
         "init_bash":"docker run -d --name backend -p $BACKEND_PORT:$BACKEND_PORT -p $WS_PORT:$WS_PORT -e MONGO_URI=$MONGO_URI -e JWT_SECRET=$JWT_SECRET -e ENCRYPTION_KEY=$ENCRYPTION_KEY -e ENCRYPTION_SALT=$ENCRYPTION_SALT -e WS_PORT=$WS_PORT -e REDIS_HOST=$REDIS_HOST -e REDIS_PORT=$REDIS_PORT backend:latest"
     },
     "frontend":{

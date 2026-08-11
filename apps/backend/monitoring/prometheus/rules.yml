@@ -1,4 +1,36 @@
 groups:
+  - name: ktb_application_sli
+    interval: 30s
+    rules:
+      - record: ktb:http_success_latency_seconds:avg5m
+        expr: |
+          sum by (application) (rate(http_server_success_latency_seconds_sum[5m]))
+          /
+          clamp_min(sum by (application) (rate(http_server_success_latency_seconds_count[5m])), 1e-9)
+
+      # CloudWatch Agent cannot ingest histograms. These are the conservative
+      # maximum of the client-side per-instance summary quantiles.
+      - record: ktb:http_success_latency_seconds:p95
+        expr: max by (application) (http_server_success_latency_seconds{quantile="0.95"})
+
+      - record: ktb:http_success_latency_seconds:p99
+        expr: max by (application) (http_server_success_latency_seconds{quantile="0.99"})
+
+      - record: ktb:http_error_responses_per_second:rate5m
+        expr: sum by (application, status_class) (rate(http_server_responses_total[5m]))
+
+      - record: ktb:http_slo_exceeded:ratio5m
+        expr: |
+          sum by (application) (rate(http_server_success_slo_exceeded_total[5m]))
+          /
+          clamp_min(sum by (application) (rate(http_server_success_latency_seconds_count[5m])), 1e-9)
+
+      - record: ktb:tomcat_thread_pool_utilization:ratio
+        expr: |
+          tomcat_threads_busy_threads
+          /
+          clamp_min(tomcat_threads_config_max_threads, 1)
+
   - name: container_name_mapping
     interval: 30s
     rules:

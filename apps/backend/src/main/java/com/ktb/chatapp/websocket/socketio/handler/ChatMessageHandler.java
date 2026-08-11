@@ -274,6 +274,7 @@ public class ChatMessageHandler {
     private Timer createTimer(String status, String messageType) {
         return Timer.builder("socketio.messages.processing.time")
                 .description("Socket.IO message processing time")
+                .publishPercentiles(0.95, 0.99)
                 .tag("status", status)
                 .tag("message_type", messageType)
                 .register(meterRegistry);
