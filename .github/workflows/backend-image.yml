@@ -52,14 +52,6 @@ jobs:
           aws s3 cp "/tmp/backend.tar" \
             "s3://${S3_BUCKET}/static/main/docker-images/backend.tar" \
             --only-show-errors
-      - name: Upload config.json to S3
-        env:
-          S3_BUCKET: ${{ vars.S3_BUCKET }}
-        run: |
-          aws s3 cp "apps/deploy/config.json" \
-            "s3://${S3_BUCKET}/static/main/config.json" \
-            --only-show-errors
-
       - name: Package CloudWatch Agent configuration
         run: |
           tar -cf /tmp/cloudwatch-backend.tar \
@@ -75,4 +67,14 @@ jobs:
         run: |
           aws s3 cp /tmp/cloudwatch-backend.tar \
             "s3://${S3_BUCKET}/static/main/monitoring/cloudwatch-backend.tar" \
+            --only-show-errors
+
+      # Publish config last so instances never see a config that references an
+      # agent archive that has not been uploaded yet.
+      - name: Upload config.json to S3
+        env:
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+        run: |
+          aws s3 cp "apps/deploy/config.json" \
+            "s3://${S3_BUCKET}/static/main/config.json" \
             --only-show-errors
