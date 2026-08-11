@@ -36,7 +36,7 @@ public class RoomService {
     public RoomsResponse getAllRooms(String name) {
 
         try {
-            화// 최신순 정렬은 DB 레벨에서 처리한다 (Java 메모리 정렬 제거)
+            // 최신순 정렬은 DB 레벨에서 처리한다 (Java 메모리 정렬 제거)
             List<Room> rooms = roomRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
 
             Set<String> userIds = new HashSet<>();
