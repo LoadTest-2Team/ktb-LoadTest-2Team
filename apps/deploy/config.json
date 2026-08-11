@@ -15,8 +15,8 @@
     "backend":{
         "image_file_name":"backend.tar",
         "image_file_dir_path":"static/main/docker-images/",
-        "uuid":"b1c2d3e4-5f6g-7h8i-9j0k-1l2m3n4o5p6r",
-        "init_bash":"docker run -d --name backend -p $BACKEND_PORT:$BACKEND_PORT -p $WS_PORT:$WS_PORT -e MONGO_URI=$MONGO_URI -e JWT_SECRET=$JWT_SECRET -e ENCRYPTION_KEY=$ENCRYPTION_KEY -e ENCRYPTION_SALT=$ENCRYPTION_SALT -e WS_PORT=$WS_PORT backend:latest"
+        "uuid":"b1c2d3e4-5f6g-7h8i-9j0k-1l2m3n4o5p6rtt",
+        "init_bash":"docker run -d --name backend -p $BACKEND_PORT:$BACKEND_PORT -p $WS_PORT:$WS_PORT -e MONGO_URI=$MONGO_URI -e JWT_SECRET=$JWT_SECRET -e ENCRYPTION_KEY=$ENCRYPTION_KEY -e ENCRYPTION_SALT=$ENCRYPTION_SALT -e WS_PORT=$WS_PORT -e REDIS_HOST=$REDIS_HOST -e REDIS_PORT=$REDIS_PORT backend:latest"
     },
     "frontend":{
         "image_file_name":"frontend.tar",
