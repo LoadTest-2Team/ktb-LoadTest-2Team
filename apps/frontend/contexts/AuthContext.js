@@ -10,6 +10,7 @@ import {
   saveLastTokenVerification,
   saveStoredUser,
 } from '../lib/auth/authStorage';
+import { clearRoomListCache } from '../features/chat/rooms/roomListCache';
 
 const AuthContext = createContext(null);
 
@@ -54,6 +55,7 @@ export const AuthProviderWithRouter = ({ children, router }) => {
   // 사용자 정보를 저장소와 state에 저장
   const saveUser = useCallback((userData) => {
     if (!userData) {
+      clearRoomListCache();
       clearStoredUser();
       setUser(null);
       return;
