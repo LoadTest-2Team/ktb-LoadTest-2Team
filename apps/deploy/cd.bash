@@ -69,7 +69,7 @@ aws s3 cp "s3://${S3_BUCKET_NAME}/${IMAGE_FILE_DIR_PATH}${IMAGE_FILE_NAME}" "$BA
 
 docker load -i "$BASE_DIR/${IMAGE_FILE_NAME}"
 
-docker rm -f "$ROLE"
+docker rm -f "$(cat "$BASE_DIR/role.txt")" 2>/dev/null || true
 
 eval "$INIT_BASH"
 
@@ -79,3 +79,4 @@ aws ec2 create-tags --resources "$INSTANCE_ID" --tags Key=Role,Value="$ROLE" --r
 
 mkdir -p "$BASE_DIR"
 echo "$UUID" > "$BASE_DIR/$CURRENT_IMAGE_UUID_FILE_PATH"
+echo "$ROLE" > "$BASE_DIR/role.txt"
