@@ -33,4 +33,12 @@ class StoragePortSelectionTest {
                 .run(context -> assertThat(context).hasSingleBean(LocalStorage.class));
     }
 
+    @Test
+    @DisplayName("file.storage.type=s3이면 LocalStorage 빈은 등록되지 않는다")
+    void localStorageIsNotRegisteredWhenPropertyIsS3() {
+        contextRunner
+                .withPropertyValues("file.storage.type=s3", "file.upload-dir=" + uploadDir)
+                .run(context -> assertThat(context).doesNotHaveBean(LocalStorage.class));
+    }
+
 }

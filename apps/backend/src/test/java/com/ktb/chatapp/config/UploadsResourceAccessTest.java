@@ -32,7 +32,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(controllers = {ProfileImageController.class, UploadsResourceAccessTest.NoopController.class})
 @Import({SecurityConfig.class, WebMvcConfig.class, LocalStorage.class})
-@TestPropertySource(properties = "file.upload-dir=target/test-classes/test-uploads")
+@TestPropertySource(properties = {
+        "file.upload-dir=target/test-classes/test-uploads",
+        // 이 테스트는 실제 로컬 디스크 서빙을 검증 대상으로 삼는다(@Import(LocalStorage.class)) — 전역
+        // 기본값(s3)을 물려받으면 LocalStorage의 @ConditionalOnProperty가 꺼져 StoragePort 빈이 아예 없어진다.
+        "file.storage.type=local"
+})
 class UploadsResourceAccessTest {
 
     @Autowired

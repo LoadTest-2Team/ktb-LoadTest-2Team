@@ -1,25 +1,30 @@
 package com.ktb.chatapp.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.ktb.chatapp.model.File;
 import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.UserRepository;
 import com.ktb.chatapp.security.SessionAwareJwtAuthenticationConverter;
 import com.ktb.chatapp.service.FileAccess;
 import com.ktb.chatapp.service.FileAccessService;
 import com.ktb.chatapp.service.FileService;
+import com.ktb.chatapp.service.PresignedUploadResult;
 import com.ktb.chatapp.service.PreviewNotSupportedException;
 import com.ktb.chatapp.service.RateLimitService;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,6 +34,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -189,6 +195,61 @@ class FileControllerTest {
         mockMvc.perform(delete("/api/files/{id}", "file-1").principal(PRINCIPAL))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value("파일을 삭제할 권한이 없습니다."));
+    }
+
+    @Test
+    @DisplayName("presign-upload 성공 → file 메타데이터 + uploadUrl을 그대로 돌려준다")
+    void presignUpload_success_returnsFileAndUploadUrl() throws Exception {
+        File file = File.builder()
+                .id("file-1")
+                .filename(FILE_NAME)
+                .originalname(ORIGINAL_NAME)
+                .mimetype("image/png")
+                .size(11L)
+                .path("chat/" + FILE_NAME)
+                .user(USER_ID)
+                .build();
+
+        String uploadUrl = "https://s3.example.test/bucket/chat/" + FILE_NAME + "?sig=stub";
+        PresignedUploadResult result = PresignedUploadResult.builder()
+                .file(file)
+                .uploadUrl(URI.create(uploadUrl))
+                .requiredHeaders(Map.of("Content-Type", "image/png"))
+                .build();
+
+        when(fileService.presignUpload(ORIGINAL_NAME, "image/png", 11L, USER_ID)).thenReturn(result);
+
+        String requestBody = "{\"originalFilename\":\"" + ORIGINAL_NAME + "\","
+                + "\"mimetype\":\"image/png\",\"size\":11}";
+
+        mockMvc.perform(post("/api/files/presign-upload")
+                        .principal(PRINCIPAL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.file._id").value("file-1"))
+                .andExpect(jsonPath("$.file.filename").value(FILE_NAME))
+                .andExpect(jsonPath("$.uploadUrl").value(uploadUrl))
+                .andExpect(jsonPath("$.requiredHeaders['Content-Type']").value("image/png"));
+    }
+
+    @Test
+    @DisplayName("presign-upload에서 스토리지가 직접 업로드를 지원하지 않으면 500과 사유를 그대로 돌려준다")
+    void presignUpload_unsupportedStorage_returnsInternalServerErrorWithMessage() throws Exception {
+        when(fileService.presignUpload(any(), any(), anyLong(), any()))
+                .thenThrow(new RuntimeException("현재 스토리지 설정은 클라이언트 직접 업로드를 지원하지 않습니다."));
+
+        String requestBody = "{\"originalFilename\":\"" + ORIGINAL_NAME + "\","
+                + "\"mimetype\":\"image/png\",\"size\":11}";
+
+        mockMvc.perform(post("/api/files/presign-upload")
+                        .principal(PRINCIPAL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("현재 스토리지 설정은 클라이언트 직접 업로드를 지원하지 않습니다."));
     }
 
     private FileAccess stream() {

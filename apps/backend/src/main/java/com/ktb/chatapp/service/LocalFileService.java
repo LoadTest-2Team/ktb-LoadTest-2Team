@@ -2,10 +2,12 @@ package com.ktb.chatapp.service;
 
 import com.ktb.chatapp.model.File;
 import com.ktb.chatapp.repository.FileRepository;
+import com.ktb.chatapp.storage.PresignedUpload;
 import com.ktb.chatapp.storage.StorageKey;
 import com.ktb.chatapp.storage.StoragePort;
 import com.ktb.chatapp.util.FileUtil;
 import java.io.IOException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,9 @@ import org.springframework.web.multipart.MultipartFile;
 @Slf4j
 @Service
 public class LocalFileService implements FileService {
+
+    /** 발급 직후 곧바로 소비되는 흐름이므로 유출 창을 짧게 유지한다({@link FileAccessService}와 동일한 값). */
+    private static final Duration PRESIGN_UPLOAD_TTL = Duration.ofMinutes(5);
 
     private final StoragePort storagePort;
     private final FileRepository fileRepository;
@@ -85,10 +90,8 @@ public class LocalFileService implements FileService {
             originalFilename = StringUtils.cleanPath(originalFilename);
             String safeFileName = FileUtil.generateSafeFileName(originalFilename);
 
-            // key 조립 (서브디렉토리 포함, 예: profiles)
-            String key = (subDirectory != null && !subDirectory.trim().isEmpty())
-                    ? subDirectory + "/" + safeFileName
-                    : safeFileName;
+            // key 조립 (서브디렉토리 포함, 예: profiles) — StorageKey.chat()/profile()과 같은 루트 접두사 규약
+            String key = StorageKey.of(subDirectory, safeFileName);
 
             // 파일 저장
             storagePort.put(file.getInputStream(), key, file.getContentType(), file.getSize());
@@ -127,5 +130,40 @@ public class LocalFileService implements FileService {
             log.error("파일 삭제 실패: {}", e.getMessage(), e);
             throw new RuntimeException("파일 삭제 중 오류가 발생했습니다.", e);
         }
+    }
+
+    @Override
+    public PresignedUploadResult presignUpload(String originalFilename, String mimetype, long size, String uploaderId) {
+        // 실제 바이트가 없으므로 메타데이터만으로 검증 (whitelist/크기 제한은 storeFile과 동일 규칙)
+        FileUtil.validateFile(originalFilename, mimetype, size);
+
+        String cleanedOriginalFilename = StringUtils.cleanPath(originalFilename);
+        String safeFileName = FileUtil.generateSafeFileName(cleanedOriginalFilename);
+        String key = StorageKey.chat(safeFileName);
+
+        PresignedUpload presigned = storagePort.presignUpload(key, mimetype, size, PRESIGN_UPLOAD_TTL)
+                .orElseThrow(() -> new RuntimeException("현재 스토리지 설정은 클라이언트 직접 업로드를 지원하지 않습니다."));
+
+        String normalizedOriginalname = FileUtil.normalizeOriginalFilename(cleanedOriginalFilename);
+
+        File fileEntity = File.builder()
+                .filename(safeFileName)
+                .originalname(normalizedOriginalname)
+                .mimetype(mimetype)
+                .size(size)
+                .path(key)
+                .user(uploaderId)
+                .uploadDate(LocalDateTime.now())
+                .build();
+
+        File savedFile = fileRepository.save(fileEntity);
+
+        log.info("presigned 업로드 URL 발급: {} (사용자: {})", safeFileName, uploaderId);
+
+        return PresignedUploadResult.builder()
+                .file(savedFile)
+                .uploadUrl(presigned.url())
+                .requiredHeaders(presigned.requiredHeaders())
+                .build();
     }
 }

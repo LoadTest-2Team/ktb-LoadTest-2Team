@@ -1,5 +1,6 @@
 package com.ktb.chatapp.controller;
 
+import com.ktb.chatapp.dto.PresignUploadRequest;
 import com.ktb.chatapp.dto.StandardResponse;
 import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.UserRepository;
@@ -7,6 +8,7 @@ import com.ktb.chatapp.service.FileAccess;
 import com.ktb.chatapp.service.FileAccessService;
 import com.ktb.chatapp.service.FileService;
 import com.ktb.chatapp.service.FileUploadResult;
+import com.ktb.chatapp.service.PresignedUploadResult;
 import com.ktb.chatapp.service.PreviewNotSupportedException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -16,6 +18,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
@@ -95,6 +98,57 @@ public class FileController {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
             errorResponse.put("message", "파일 업로드 중 오류가 발생했습니다.");
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    /**
+     * S3 직접 업로드용 presigned URL 발급. 클라이언트는 이 URL로 파일을 직접 PUT하고, 완료 후
+     * {@code file._id}를 그대로 채팅 메시지(fileData._id)에 실어 보낸다 — 이후 흐름은 기존 업로드와 동일.
+     */
+    @Operation(summary = "파일 직접 업로드 URL 발급", description = "클라이언트가 스토리지로 직접 업로드할 수 있는 presigned URL을 발급합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "발급 성공"),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
+        @ApiResponse(responseCode = "401", description = "인증 실패",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
+        @ApiResponse(responseCode = "500", description = "서버 내부 오류",
+            content = @Content(schema = @Schema(implementation = StandardResponse.class)))
+    })
+    @PostMapping("/presign-upload")
+    public ResponseEntity<?> presignUpload(@Valid @RequestBody PresignUploadRequest request, Principal principal) {
+        try {
+            User user = userRepository.findByEmail(principal.getName())
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found: " + principal.getName()));
+
+            PresignedUploadResult result = fileService.presignUpload(
+                    request.getOriginalFilename(), request.getMimetype(), request.getSize(), user.getId());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "업로드 URL 발급 성공");
+
+            Map<String, Object> fileData = new HashMap<>();
+            fileData.put("_id", result.getFile().getId());
+            fileData.put("filename", result.getFile().getFilename());
+            fileData.put("originalname", result.getFile().getOriginalname());
+            fileData.put("mimetype", result.getFile().getMimetype());
+            fileData.put("size", result.getFile().getSize());
+            fileData.put("uploadDate", result.getFile().getUploadDate());
+
+            response.put("file", fileData);
+            response.put("uploadUrl", result.getUploadUrl());
+            response.put("requiredHeaders", result.getRequiredHeaders());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("presigned 업로드 URL 발급 중 에러 발생", e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "업로드 URL 발급 중 오류가 발생했습니다.");
             errorResponse.put("error", e.getMessage());
             return ResponseEntity.status(500).body(errorResponse);
         }

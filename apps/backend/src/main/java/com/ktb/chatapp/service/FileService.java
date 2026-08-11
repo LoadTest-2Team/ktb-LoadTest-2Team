@@ -13,5 +13,11 @@ public interface FileService {
     String storeFile(MultipartFile file, String subDirectory);
 
     boolean deleteFile(String fileId, String requesterId);
+
+    /**
+     * 클라이언트가 스토리지로 직접 업로드할 수 있는 presigned URL을 발급한다. 스토리지가 이를 지원하지
+     * 않으면(예: 로컬 스토리지) 예외를 던진다.
+     */
+    PresignedUploadResult presignUpload(String originalFilename, String mimetype, long size, String uploaderId);
 }
 
