@@ -47,7 +47,7 @@ const FilePreview = ({
       await fileService.validateFile(file);
       const fileObject = {
         file,
-        name: file.name || `file-${Date.now()}.${file.type.split('/')[1]}`,
+        name: file.name || `file-${crypto.randomUUID()}.${file.type.split('/')[1]}`,
         type: file.type,
         size: file.size
       };

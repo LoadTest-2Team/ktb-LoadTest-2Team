@@ -42,9 +42,10 @@ import org.springframework.test.web.servlet.MockMvc;
  * {@code /api/files} 읽기 경로의 HTTP 표면을 고정한다. {@link FileAccessService}가 조립한
  * {@link FileAccess}를 컨트롤러가 어떤 상태코드·헤더로 번역하는지가 검증 대상이다.
  *
- * <p>두 계약이 특히 조용히 깨진다. ① {@code handleFileError}는 <b>예외 메시지 문자열</b>로 403/404를
- * 분기하므로 던지는 메시지가 바뀌면 상태코드가 바뀐다. ② download는 {@code attachment} + 캐시 금지,
- * view는 {@code inline} + 장기 캐시로 헤더가 서로 달라야 한다.
+ * <p>view/download는 프로필 이미지와 같은 원칙으로 인증을 요구하지 않는다(2026-08-11 결정). 두 계약이
+ * 특히 조용히 깨진다. ① {@code handleFileError}는 <b>예외 메시지 문자열</b>로 404를 분기하므로 던지는
+ * 메시지가 바뀌면 상태코드가 바뀐다. ② download는 {@code attachment} + 캐시 금지, view는 {@code inline}로
+ * 헤더가 서로 달라야 한다.
  */
 @WebMvcTest(controllers = FileController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -87,11 +88,11 @@ class FileControllerTest {
     }
 
     @Test
-    @DisplayName("download + Stream → attachment 헤더와 캐시 금지 헤더")
+    @DisplayName("download + Stream → attachment 헤더와 캐시 금지 헤더 (인증 없이)")
     void downloadFile_stream_setsAttachmentAndNoCacheHeaders() throws Exception {
-        when(fileAccessService.forDownload(FILE_NAME, USER_ID)).thenReturn(stream());
+        when(fileAccessService.forDownload(FILE_NAME)).thenReturn(stream());
 
-        mockMvc.perform(get("/api/files/download/{filename}", FILE_NAME).principal(PRINCIPAL))
+        mockMvc.perform(get("/api/files/download/{filename}", FILE_NAME))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "image/png"))
                 .andExpect(header().longValue("Content-Length", 11L))
@@ -105,11 +106,11 @@ class FileControllerTest {
     }
 
     @Test
-    @DisplayName("view + Stream → inline 헤더")
+    @DisplayName("view + Stream → inline 헤더 (인증 없이)")
     void viewFile_stream_setsInlineHeader() throws Exception {
-        when(fileAccessService.forView(FILE_NAME, USER_ID)).thenReturn(stream());
+        when(fileAccessService.forView(FILE_NAME)).thenReturn(stream());
 
-        mockMvc.perform(get("/api/files/view/{filename}", FILE_NAME).principal(PRINCIPAL))
+        mockMvc.perform(get("/api/files/view/{filename}", FILE_NAME))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "image/png"))
                 .andExpect(header().string(
@@ -122,65 +123,42 @@ class FileControllerTest {
     @Test
     @DisplayName("download + Redirect → 302와 Location (오프로딩)")
     void downloadFile_redirect_returnsFoundWithLocation() throws Exception {
-        when(fileAccessService.forDownload(FILE_NAME, USER_ID)).thenReturn(redirect());
+        when(fileAccessService.forDownload(FILE_NAME)).thenReturn(redirect());
 
-        mockMvc.perform(get("/api/files/download/{filename}", FILE_NAME).principal(PRINCIPAL))
+        mockMvc.perform(get("/api/files/download/{filename}", FILE_NAME))
                 .andExpect(status().isFound())
-                .andExpect(redirectedUrl("https://cdn.example.test/chat/" + FILE_NAME + "?sig=stub"));
+                .andExpect(redirectedUrl("https://cdn.example.test/static/main/chat/" + FILE_NAME + "?sig=stub"));
     }
 
     @Test
     @DisplayName("view + Redirect → 302와 Location (오프로딩)")
     void viewFile_redirect_returnsFoundWithLocation() throws Exception {
-        when(fileAccessService.forView(FILE_NAME, USER_ID)).thenReturn(redirect());
+        when(fileAccessService.forView(FILE_NAME)).thenReturn(redirect());
 
-        mockMvc.perform(get("/api/files/view/{filename}", FILE_NAME).principal(PRINCIPAL))
+        mockMvc.perform(get("/api/files/view/{filename}", FILE_NAME))
                 .andExpect(status().isFound())
-                .andExpect(redirectedUrl("https://cdn.example.test/chat/" + FILE_NAME + "?sig=stub"));
-    }
-
-    @Test
-    @DisplayName("권한 예외 메시지 → 403")
-    void downloadFile_unauthorizedMessage_returnsForbidden() throws Exception {
-        when(fileAccessService.forDownload(FILE_NAME, USER_ID))
-                .thenThrow(new RuntimeException("파일에 접근할 권한이 없습니다"));
-
-        mockMvc.perform(get("/api/files/download/{filename}", FILE_NAME).principal(PRINCIPAL))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("파일에 접근할 권한이 없습니다."));
+                .andExpect(redirectedUrl("https://cdn.example.test/static/main/chat/" + FILE_NAME + "?sig=stub"));
     }
 
     @Test
     @DisplayName("미발견 예외 메시지 → 404")
     void downloadFile_notFoundMessage_returnsNotFound() throws Exception {
-        when(fileAccessService.forDownload(FILE_NAME, USER_ID))
+        when(fileAccessService.forDownload(FILE_NAME))
                 .thenThrow(new RuntimeException("파일을 찾을 수 없습니다: " + FILE_NAME));
 
-        mockMvc.perform(get("/api/files/download/{filename}", FILE_NAME).principal(PRINCIPAL))
+        mockMvc.perform(get("/api/files/download/{filename}", FILE_NAME))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("파일을 찾을 수 없습니다."));
     }
 
     @Test
-    @DisplayName("view의 권한 예외도 같은 403 계약을 따른다")
-    void viewFile_unauthorizedMessage_returnsForbidden() throws Exception {
-        when(fileAccessService.forView(FILE_NAME, USER_ID))
-                .thenThrow(new RuntimeException("파일에 접근할 권한이 없습니다"));
-
-        mockMvc.perform(get("/api/files/view/{filename}", FILE_NAME).principal(PRINCIPAL))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("파일에 접근할 권한이 없습니다."));
-    }
-
-    @Test
     @DisplayName("미리보기 미지원 → 415와 예외 메시지 그대로")
     void viewFile_previewNotSupported_returnsUnsupportedMediaType() throws Exception {
-        when(fileAccessService.forView(FILE_NAME, USER_ID))
+        when(fileAccessService.forView(FILE_NAME))
                 .thenThrow(new PreviewNotSupportedException("미리보기를 지원하지 않는 파일 형식입니다."));
 
-        mockMvc.perform(get("/api/files/view/{filename}", FILE_NAME).principal(PRINCIPAL))
+        mockMvc.perform(get("/api/files/view/{filename}", FILE_NAME))
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("미리보기를 지원하지 않는 파일 형식입니다."));
@@ -206,11 +184,11 @@ class FileControllerTest {
                 .originalname(ORIGINAL_NAME)
                 .mimetype("image/png")
                 .size(11L)
-                .path("chat/" + FILE_NAME)
+                .path("static/main/chat/" + FILE_NAME)
                 .user(USER_ID)
                 .build();
 
-        String uploadUrl = "https://s3.example.test/bucket/chat/" + FILE_NAME + "?sig=stub";
+        String uploadUrl = "https://s3.example.test/bucket/static/main/chat/" + FILE_NAME + "?sig=stub";
         PresignedUploadResult result = PresignedUploadResult.builder()
                 .file(file)
                 .uploadUrl(URI.create(uploadUrl))
@@ -222,7 +200,7 @@ class FileControllerTest {
         String requestBody = "{\"originalFilename\":\"" + ORIGINAL_NAME + "\","
                 + "\"mimetype\":\"image/png\",\"size\":11}";
 
-        mockMvc.perform(post("/api/files/presign-upload")
+        mockMvc.perform(post("/api/files/upload")
                         .principal(PRINCIPAL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
@@ -243,7 +221,7 @@ class FileControllerTest {
         String requestBody = "{\"originalFilename\":\"" + ORIGINAL_NAME + "\","
                 + "\"mimetype\":\"image/png\",\"size\":11}";
 
-        mockMvc.perform(post("/api/files/presign-upload")
+        mockMvc.perform(post("/api/files/upload")
                         .principal(PRINCIPAL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
@@ -258,6 +236,6 @@ class FileControllerTest {
 
     private FileAccess redirect() {
         return new FileAccess.Redirect(
-                URI.create("https://cdn.example.test/chat/" + FILE_NAME + "?sig=stub"));
+                URI.create("https://cdn.example.test/static/main/chat/" + FILE_NAME + "?sig=stub"));
     }
 }

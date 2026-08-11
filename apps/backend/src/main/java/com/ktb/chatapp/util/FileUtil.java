@@ -6,8 +6,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.SecureRandom;
-import java.time.Instant;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -40,8 +38,6 @@ public class FileUtil {
 
     // 파일명에 사용할 수 없는 문자들
     private static final Pattern INVALID_FILENAME_PATTERN = Pattern.compile("[^a-zA-Z0-9._-]");
-
-    private static final SecureRandom secureRandom = new SecureRandom();
 
     /**
      * 파일 유효성 검증
@@ -147,47 +143,12 @@ public class FileUtil {
     }
 
     /**
-     * 안전한 파일명 생성
+     * 안전한 파일명 생성 (UUID 기반 — 타임스탬프는 순서를 노출해 파일 생성 시점을 추측할 수 있게 하므로 쓰지 않는다)
      */
     public static String generateSafeFileName(String originalFilename) {
-        if (originalFilename == null || originalFilename.trim().isEmpty()) {
-            return generateRandomFileName("file");
-        }
-
-        // 파일 확장자 분리
-        String extension = getFileExtension(originalFilename);
-
-        // 타임스탬프와 16자리 hex 랜덤 값으로 고유성 보장
-        long timestamp = Instant.now().toEpochMilli();
-        byte[] randomBytes = new byte[8];
-        secureRandom.nextBytes(randomBytes);
-        String randomHex = bytesToHex(randomBytes);
-
-        if (!extension.isEmpty()) {
-            return String.format("%d_%s.%s", timestamp, randomHex, extension);
-        } else {
-            return String.format("%d_%s", timestamp, randomHex);
-        }
-    }
-    
-    /**
-     * 바이트 배열을 16진수 문자열로 변환
-     */
-    private static String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b));
-        }
-        return sb.toString();
-    }
-
-    /**
-     * 랜덤 파일명 생성
-     */
-    private static String generateRandomFileName(String prefix) {
-        long timestamp = Instant.now().toEpochMilli();
-        int random = secureRandom.nextInt(10000);
-        return String.format("%s_%d_%04d", prefix, timestamp, random);
+        String uuid = java.util.UUID.randomUUID().toString();
+        String extension = originalFilename != null ? getFileExtension(originalFilename) : "";
+        return extension.isEmpty() ? uuid : uuid + "." + extension;
     }
 
     /**
@@ -212,9 +173,10 @@ public class FileUtil {
         if (filename == null || filename.trim().isEmpty()) {
             return false;
         }
-        
-        // 패턴: 숫자_16자리hex.확장자
-        Pattern pattern = Pattern.compile("^[0-9]+_[a-f0-9]{16}\\.[a-z0-9]+$");
+
+        // 패턴: UUID(.확장자는 선택)
+        Pattern pattern = Pattern.compile(
+                "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\\.[a-z0-9]+)?$");
         return pattern.matcher(filename).matches();
     }
 

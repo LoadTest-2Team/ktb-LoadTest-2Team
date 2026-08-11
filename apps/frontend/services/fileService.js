@@ -85,9 +85,11 @@ class FileService {
 
     try {
       // 1) 백엔드에 presigned 업로드 URL 발급 요청 — 파일 바이트는 아직 보내지 않는다.
+      // 엔드포인트 경로는 과거 백엔드 경유 업로드가 쓰던 /api/files/upload를 그대로 물려받았다
+      // (업로드 메커니즘은 스토리지 직접 PUT 그대로, 경로만 유지).
       const presignEndpoint = this.baseUrl ?
-        `${this.baseUrl}/api/files/presign-upload` :
-        '/api/files/presign-upload';
+        `${this.baseUrl}/api/files/upload` :
+        '/api/files/upload';
 
       // token과 sessionId는 axios 인터셉터에서 자동으로 추가되므로
       // 여기서는 명시적으로 전달하지 않아도 됩니다
@@ -164,21 +166,9 @@ class FileService {
     return `${baseUrl}/api/files/${endpoint}/${filename}`;
   }
 
-  getPreviewUrl(file, token, sessionId, withAuth = true) {
+  getPreviewUrl(file) {
     if (!file?.filename) return '';
-
-    const baseUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/files/view/${file.filename}`;
-
-    if (!withAuth) return baseUrl;
-
-    if (!token || !sessionId) return baseUrl;
-
-    // URL 객체 생성 전 프로토콜 확인
-    const url = new URL(baseUrl);
-    url.searchParams.append('token', encodeURIComponent(token));
-    url.searchParams.append('sessionId', encodeURIComponent(sessionId));
-
-    return url.toString();
+    return `${process.env.NEXT_PUBLIC_API_URL}/api/files/view/${file.filename}`;
   }
 
   getFileExtension(filename) {
