@@ -16,8 +16,8 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -155,30 +155,23 @@ public class FileController {
     }
 
     /**
-     * 보안이 강화된 파일 다운로드
+     * 파일 다운로드. 프로필 이미지({@link ProfileImageController})와 같은 원칙 — 파일명(추측 불가능한
+     * 안전한 랜덤 생성 파일명)만 알면 인증 없이 누구나 다운로드할 수 있다.
      */
-    @Operation(summary = "파일 다운로드", description = "업로드된 파일을 다운로드합니다. 본인이 업로드한 파일만 다운로드 가능합니다.")
+    @Operation(summary = "파일 다운로드", description = "업로드된 파일을 다운로드합니다. 인증이 필요하지 않습니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "파일 다운로드 성공"),
-        @ApiResponse(responseCode = "401", description = "인증 실패",
-            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
-        @ApiResponse(responseCode = "403", description = "권한 없음",
-            content = @Content(schema = @Schema(implementation = StandardResponse.class))),
         @ApiResponse(responseCode = "404", description = "파일을 찾을 수 없음",
             content = @Content(schema = @Schema(implementation = StandardResponse.class))),
         @ApiResponse(responseCode = "500", description = "서버 내부 오류",
             content = @Content(schema = @Schema(implementation = StandardResponse.class)))
     })
+    @SecurityRequirement(name = "")
     @GetMapping("/download/{filename:.+}")
     public ResponseEntity<?> downloadFile(
-            @Parameter(description = "다운로드할 파일명") @PathVariable String filename,
-            HttpServletRequest request,
-            Principal principal) {
+            @Parameter(description = "다운로드할 파일명") @PathVariable String filename) {
         try {
-            User user = userRepository.findByEmail(principal.getName())
-                    .orElseThrow(() -> new UsernameNotFoundException("User not found: " + principal.getName()));
-
-            return switch (fileAccessService.forDownload(filename, user.getId())) {
+            return switch (fileAccessService.forDownload(filename)) {
                 case FileAccess.Stream stream -> attachmentResponse(stream);
                 case FileAccess.Redirect redirect -> redirectResponse(redirect);
             };
@@ -224,21 +217,12 @@ public class FileController {
             if (errorMessage.contains("잘못된 파일명") || errorMessage.contains("Invalid filename")) {
                 statusCode = 400;
                 responseMessage = "잘못된 파일명입니다.";
-            } else if (errorMessage.contains("인증") || errorMessage.contains("Authentication")) {
-                statusCode = 401;
-                responseMessage = "인증이 필요합니다.";
             } else if (errorMessage.contains("잘못된 파일 경로") || errorMessage.contains("Invalid file path")) {
                 statusCode = 400;
                 responseMessage = "잘못된 파일 경로입니다.";
             } else if (errorMessage.contains("찾을 수 없습니다") || errorMessage.contains("not found")) {
                 statusCode = 404;
                 responseMessage = "파일을 찾을 수 없습니다.";
-            } else if (errorMessage.contains("메시지를 찾을 수 없습니다")) {
-                statusCode = 404;
-                responseMessage = "파일 메시지를 찾을 수 없습니다.";
-            } else if (errorMessage.contains("권한") || errorMessage.contains("Unauthorized")) {
-                statusCode = 403;
-                responseMessage = "파일에 접근할 권한이 없습니다.";
             }
         }
 
@@ -249,16 +233,14 @@ public class FileController {
         return ResponseEntity.status(statusCode).body(errorResponse);
     }
 
+    /**
+     * 파일 미리보기(inline). 다운로드와 같은 원칙 — 인증 없이 파일명만으로 조회 가능하다.
+     */
+    @SecurityRequirement(name = "")
     @GetMapping("/view/{filename:.+}")
-    public ResponseEntity<?> viewFile(
-            @PathVariable String filename,
-            HttpServletRequest request,
-            Principal principal) {
+    public ResponseEntity<?> viewFile(@PathVariable String filename) {
         try {
-            User user = userRepository.findByEmail(principal.getName())
-                    .orElseThrow(() -> new UsernameNotFoundException("User not found: " + principal.getName()));
-
-            return switch (fileAccessService.forView(filename, user.getId())) {
+            return switch (fileAccessService.forView(filename)) {
                 case FileAccess.Stream stream -> inlineResponse(stream);
                 case FileAccess.Redirect redirect -> redirectResponse(redirect);
             };

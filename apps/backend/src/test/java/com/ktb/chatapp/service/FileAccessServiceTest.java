@@ -5,11 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import com.ktb.chatapp.model.File;
-import com.ktb.chatapp.model.Message;
-import com.ktb.chatapp.model.Room;
 import com.ktb.chatapp.repository.FileRepository;
-import com.ktb.chatapp.repository.MessageRepository;
-import com.ktb.chatapp.repository.RoomRepository;
 import com.ktb.chatapp.storage.StoragePort;
 import com.ktb.chatapp.storage.StoredObject;
 import java.io.InputStream;
@@ -17,7 +13,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Optional;
-import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,20 +23,16 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
 
 /**
- * 3홉 인가(파일→메시지→방→참가자)와 오프로딩 스위치의 상호작용을 고정한다.
- *
- * <p>핵심 계약: 비참가자는 스토리지가 오프로딩을 지원하든 말든 <b>URL 발급 전에</b> 거부된다.
+ * 채팅 첨부 읽기 경로 단위 테스트. 프로필 이미지와 같은 원칙(파일명만 알면 조회 가능, 방 참가자 검증 없음 —
+ * 2026-08-11 결정)이므로, 여기서 고정하는 건 오프로딩 스위치의 동작뿐이다.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("FileAccessService 단위 테스트")
 class FileAccessServiceTest {
 
     private static final String FILE_NAME = "1700000000000_photo.png";
-    private static final String KEY = "chat/" + FILE_NAME;
+    private static final String KEY = "static/main/chat/" + FILE_NAME;
     private static final String FILE_ID = "file-id";
-    private static final String ROOM_ID = "room-id";
-    private static final String PARTICIPANT = "participant-id";
-    private static final String OUTSIDER = "outsider-id";
     private static final String ORIGINAL_NAME = "여행 사진.png";
     private static final long SIZE = 4242L;
     private static final URI OFFLOADED_URL = URI.create("https://cdn.example.test/" + KEY + "?sig=stub");
@@ -51,19 +42,13 @@ class FileAccessServiceTest {
     @Mock
     private FileRepository fileRepository;
 
-    @Mock
-    private MessageRepository messageRepository;
-
-    @Mock
-    private RoomRepository roomRepository;
-
     @Test
-    @DisplayName("참가자 + 오프로딩 지원 스토리지 → Redirect로 오프로딩된다")
-    void forDownload_participantWithOffloadSupport_returnsRedirect() {
+    @DisplayName("오프로딩 지원 스토리지 → Redirect로 오프로딩된다")
+    void forDownload_offloadSupport_returnsRedirect() {
         OffloadingStorage storage = new OffloadingStorage();
         FileAccessService service = serviceWith(storage, "image/png");
 
-        FileAccess access = service.forDownload(FILE_NAME, PARTICIPANT);
+        FileAccess access = service.forDownload(FILE_NAME);
 
         assertThat(access).isInstanceOf(FileAccess.Redirect.class);
         assertThat(((FileAccess.Redirect) access).location()).isEqualTo(OFFLOADED_URL);
@@ -72,12 +57,12 @@ class FileAccessServiceTest {
     }
 
     @Test
-    @DisplayName("참가자 + 오프로딩 미지원 스토리지 → 앱이 중계하는 Stream을 조립한다")
-    void forDownload_participantWithoutOffloadSupport_returnsStream() {
+    @DisplayName("오프로딩 미지원 스토리지 → 앱이 중계하는 Stream을 조립한다")
+    void forDownload_noOffloadSupport_returnsStream() {
         DirectStorage storage = new DirectStorage();
         FileAccessService service = serviceWith(storage, "image/png");
 
-        FileAccess access = service.forDownload(FILE_NAME, PARTICIPANT);
+        FileAccess access = service.forDownload(FILE_NAME);
 
         assertThat(access).isInstanceOf(FileAccess.Stream.class);
         FileAccess.Stream stream = (FileAccess.Stream) access;
@@ -89,39 +74,12 @@ class FileAccessServiceTest {
     }
 
     @Test
-    @DisplayName("비참가자 + 오프로딩 지원 스토리지 → 오프로딩 호출 전에 거부된다")
-    void forDownload_nonParticipantWithOffloadSupport_rejectsBeforeIssuingUrl() {
-        OffloadingStorage storage = new OffloadingStorage();
-        FileAccessService service = serviceWith(storage, "image/png");
-
-        assertThatThrownBy(() -> service.forDownload(FILE_NAME, OUTSIDER))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("파일에 접근할 권한이 없습니다");
-
-        assertThat(storage.offloadCalls).isZero();
-        assertThat(storage.openCalls).isZero();
-    }
-
-    @Test
-    @DisplayName("비참가자 + 오프로딩 미지원 스토리지 → 같은 메시지로 거부된다")
-    void forDownload_nonParticipantWithoutOffloadSupport_rejectsWithSameMessage() {
-        DirectStorage storage = new DirectStorage();
-        FileAccessService service = serviceWith(storage, "image/png");
-
-        assertThatThrownBy(() -> service.forDownload(FILE_NAME, OUTSIDER))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("파일에 접근할 권한이 없습니다");
-
-        assertThat(storage.openCalls).isZero();
-    }
-
-    @Test
     @DisplayName("오프로딩 URL TTL은 유한한 짧은 값으로 전달된다")
     void forDownload_passesBoundedOffloadTtl() {
         OffloadingStorage storage = new OffloadingStorage();
         FileAccessService service = serviceWith(storage, "image/png");
 
-        service.forDownload(FILE_NAME, PARTICIPANT);
+        service.forDownload(FILE_NAME);
 
         assertThat(storage.offloadedTtl).isEqualTo(FileAccessService.OFFLOAD_URL_TTL);
         assertThat(FileAccessService.OFFLOAD_URL_TTL)
@@ -135,7 +93,7 @@ class FileAccessServiceTest {
         OffloadingStorage storage = new OffloadingStorage();
         FileAccessService service = serviceWith(storage, "image/png");
 
-        service.forDownload(FILE_NAME, PARTICIPANT);
+        service.forDownload(FILE_NAME);
 
         assertThat(storage.offloadedDisposition.isAttachment()).isTrue();
         assertThat(storage.offloadedDisposition.getFilename()).isEqualTo(ORIGINAL_NAME);
@@ -147,7 +105,7 @@ class FileAccessServiceTest {
         OffloadingStorage storage = new OffloadingStorage();
         FileAccessService service = serviceWith(storage, "image/png");
 
-        service.forView(FILE_NAME, PARTICIPANT);
+        service.forView(FILE_NAME);
 
         assertThat(storage.offloadedDisposition.isInline()).isTrue();
         assertThat(storage.offloadedDisposition.getFilename()).isEqualTo(ORIGINAL_NAME);
@@ -159,7 +117,7 @@ class FileAccessServiceTest {
         DirectStorage storage = new DirectStorage();
         FileAccessService service = serviceWith(storage, "image/png");
 
-        assertThat(service.forView(FILE_NAME, PARTICIPANT)).isInstanceOf(FileAccess.Stream.class);
+        assertThat(service.forView(FILE_NAME)).isInstanceOf(FileAccess.Stream.class);
     }
 
     @Test
@@ -168,29 +126,18 @@ class FileAccessServiceTest {
         DirectStorage storage = new DirectStorage();
         FileAccessService service = serviceWith(storage, "application/zip");
 
-        assertThatThrownBy(() -> service.forView(FILE_NAME, PARTICIPANT))
+        assertThatThrownBy(() -> service.forView(FILE_NAME))
                 .isInstanceOf(PreviewNotSupportedException.class)
                 .hasMessage("미리보기를 지원하지 않는 파일 형식입니다.");
-    }
-
-    @Test
-    @DisplayName("비참가자에게는 미리보기 판정보다 인가 실패가 먼저다")
-    void forView_nonParticipant_failsAuthorizationBeforePreviewCheck() {
-        DirectStorage storage = new DirectStorage();
-        FileAccessService service = serviceWith(storage, "application/zip");
-
-        assertThatThrownBy(() -> service.forView(FILE_NAME, OUTSIDER))
-                .hasMessage("파일에 접근할 권한이 없습니다");
     }
 
     @Test
     @DisplayName("파일 메타데이터가 없으면 404 계약 메시지로 거부된다")
     void forDownload_missingFileEntity_throwsNotFound() {
         when(fileRepository.findByFilename(FILE_NAME)).thenReturn(Optional.empty());
-        FileAccessService service = new FileAccessService(
-                new DirectStorage(), fileRepository, messageRepository, roomRepository);
+        FileAccessService service = new FileAccessService(new DirectStorage(), fileRepository);
 
-        assertThatThrownBy(() -> service.forDownload(FILE_NAME, PARTICIPANT))
+        assertThatThrownBy(() -> service.forDownload(FILE_NAME))
                 .hasMessage("파일을 찾을 수 없습니다: " + FILE_NAME);
     }
 
@@ -201,17 +148,13 @@ class FileAccessServiceTest {
         storage.stored = false;
         FileAccessService service = serviceWith(storage, "image/png");
 
-        assertThatThrownBy(() -> service.forDownload(FILE_NAME, PARTICIPANT))
+        assertThatThrownBy(() -> service.forDownload(FILE_NAME))
                 .hasMessage("파일을 찾을 수 없습니다: " + FILE_NAME);
     }
 
     private FileAccessService serviceWith(StoragePort storagePort, String mimetype) {
         when(fileRepository.findByFilename(FILE_NAME)).thenReturn(Optional.of(fileEntity(mimetype)));
-        when(messageRepository.findByFileId(FILE_ID)).thenReturn(Optional.of(
-                Message.builder().id("message-id").roomId(ROOM_ID).fileId(FILE_ID).build()));
-        when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(
-                Room.builder().id(ROOM_ID).participantIds(Set.of(PARTICIPANT)).build()));
-        return new FileAccessService(storagePort, fileRepository, messageRepository, roomRepository);
+        return new FileAccessService(storagePort, fileRepository);
     }
 
     private File fileEntity(String mimetype) {

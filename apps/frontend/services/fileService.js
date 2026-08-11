@@ -164,21 +164,9 @@ class FileService {
     return `${baseUrl}/api/files/${endpoint}/${filename}`;
   }
 
-  getPreviewUrl(file, token, sessionId, withAuth = true) {
+  getPreviewUrl(file) {
     if (!file?.filename) return '';
-
-    const baseUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/files/view/${file.filename}`;
-
-    if (!withAuth) return baseUrl;
-
-    if (!token || !sessionId) return baseUrl;
-
-    // URL 객체 생성 전 프로토콜 확인
-    const url = new URL(baseUrl);
-    url.searchParams.append('token', encodeURIComponent(token));
-    url.searchParams.append('sessionId', encodeURIComponent(sessionId));
-
-    return url.toString();
+    return `${process.env.NEXT_PUBLIC_API_URL}/api/files/view/${file.filename}`;
   }
 
   getFileExtension(filename) {

@@ -13,7 +13,6 @@ import MessageActions from './MessageActions';
 import FileActions from './FileActions';
 import ReadStatus from './ReadStatus';
 import fileService from '@/services/fileService';
-import { useAuth } from '@/contexts/AuthContext';
 
 const FileMessage = ({
   msg = {},
@@ -23,20 +22,19 @@ const FileMessage = ({
   onReactionRemove,
   room = null
 }) => {
-  const { user } = useAuth();
   const [error, setError] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const messageDomRef = useRef(null);
   useEffect(() => {
     if (msg?.file) {
-      const url = fileService.getPreviewUrl(msg.file, user?.token, user?.sessionId, true);
+      const url = fileService.getPreviewUrl(msg.file);
       setPreviewUrl(url);
       console.debug('Preview URL generated:', {
         filename: msg.file.filename,
         url
       });
     }
-  }, [msg?.file, user?.token, user?.sessionId]);
+  }, [msg?.file]);
 
   if (!msg?.file) {
     console.error('File data is missing:', msg);
@@ -105,16 +103,11 @@ const FileMessage = ({
         throw new Error('파일 정보가 없습니다.');
       }
 
-      if (!user?.token || !user?.sessionId) {
-        throw new Error('인증 정보가 없습니다.');
-      }
+      const downloadUrl = fileService.getFileUrl(msg.file.filename, false);
 
-      const baseUrl = fileService.getFileUrl(msg.file.filename, false);
-      const authenticatedUrl = `${baseUrl}?token=${encodeURIComponent(user?.token)}&sessionId=${encodeURIComponent(user?.sessionId)}&download=true`;
-      
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';
-      iframe.src = authenticatedUrl;
+      iframe.src = downloadUrl;
       document.body.appendChild(iframe);
 
       setTimeout(() => {
@@ -137,14 +130,9 @@ const FileMessage = ({
         throw new Error('파일 정보가 없습니다.');
       }
 
-      if (!user?.token || !user?.sessionId) {
-        throw new Error('인증 정보가 없습니다.');
-      }
+      const viewUrl = fileService.getFileUrl(msg.file.filename, true);
 
-      const baseUrl = fileService.getFileUrl(msg.file.filename, true);
-      const authenticatedUrl = `${baseUrl}?token=${encodeURIComponent(user?.token)}&sessionId=${encodeURIComponent(user?.sessionId)}`;
-
-      const newWindow = window.open(authenticatedUrl, '_blank');
+      const newWindow = window.open(viewUrl, '_blank');
       if (!newWindow) {
         throw new Error('팝업이 차단되었습니다. 팝업 차단을 해제해주세요.');
       }
@@ -165,11 +153,7 @@ const FileMessage = ({
         );
       }
 
-      if (!user?.token || !user?.sessionId) {
-        throw new Error('인증 정보가 없습니다.');
-      }
-
-      const previewUrl = fileService.getPreviewUrl(msg.file, user?.token, user?.sessionId, true);
+      const previewUrl = fileService.getPreviewUrl(msg.file);
 
       return (
         <div className="bg-transparent-pattern">
@@ -238,7 +222,6 @@ const FileMessage = ({
                 controls
                 preload="metadata"
                 aria-label={`${originalname} 비디오`}
-                crossOrigin="use-credentials"
               >
                 <source src={previewUrl} type={mimetype} />
                 <track kind="captions" />
@@ -279,7 +262,6 @@ const FileMessage = ({
                 controls
                 preload="metadata"
                 aria-label={`${originalname} 오디오`}
-                crossOrigin="use-credentials"
               >
                 <source src={previewUrl} type={mimetype} />
                 오디오를 재생할 수 없습니다.
