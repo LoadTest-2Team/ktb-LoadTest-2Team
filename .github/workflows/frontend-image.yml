@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/frontend/**"
-      - "apps/deploy/config.json"
+      - "apps/deploy/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"

@@ -11,6 +11,7 @@ AGENT_ETC="/opt/aws/amazon-cloudwatch-agent/etc"
 AGENT_CTL="/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl"
 CREDENTIALS_DEST="$AGENT_ETC/aws-credentials"
 TEMP_PACKAGE=""
+CLOUDWATCH_CREDENTIALS_FILE="/etc/ktb/cloudwatch-agent-credentials"
 
 cleanup() {
   if [[ -n "$TEMP_PACKAGE" ]]; then

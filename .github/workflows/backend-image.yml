@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/backend/**"
-      - "apps/deploy/config.json"
+      - "apps/deploy/**"
       - ".github/workflows/backend-image.yml"
   workflow_dispatch:
 
