@@ -1,6 +1,25 @@
 import { useState, useCallback, useRef } from 'react';
 import axiosInstance from '@/services/axios';
 import { CONNECTION_STATUS } from './useServerConnection';
+import {
+  getCachedRoomList,
+  getRoomListCacheKey,
+  setCachedRoomList,
+} from './roomListCache';
+
+const applySocketUpdatesWithoutDuplicates = (serverRooms, socketUpdaters) => {
+  const updatedRooms = socketUpdaters.reduce(
+    (currentRooms, updater) => updater(currentRooms),
+    serverRooms
+  );
+  const seenRoomIds = new Set();
+
+  return updatedRooms.filter((room) => {
+    if (seenRoomIds.has(room._id)) return false;
+    seenRoomIds.add(room._id);
+    return true;
+  });
+};
 
 export const useRoomList = ({
   currentUser,
@@ -10,14 +29,49 @@ export const useRoomList = ({
   isRetrying,
   attemptConnection,
 }) => {
-  const [rooms, setRooms] = useState([]);
+  const cacheKey = getRoomListCacheKey(currentUser);
+  const initialCachedRooms = getCachedRoomList(cacheKey);
+  const [roomState, setRoomState] = useState(() => ({
+    cacheKey,
+    rooms: initialCachedRooms || [],
+  }));
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialCachedRooms === undefined);
   const [refreshing, setRefreshing] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [joiningRoom, setJoiningRoom] = useState(false);
 
   const isLoadingRef = useRef(false);
+  const socketUpdatersDuringRequestRef = useRef([]);
+  const cachedRoomsForCurrentUser = getCachedRoomList(cacheKey);
+
+  const rooms = roomState.cacheKey === cacheKey
+    ? roomState.rooms
+    : (cachedRoomsForCurrentUser || []);
+  const effectiveLoading = roomState.cacheKey === cacheKey
+    ? loading
+    : cachedRoomsForCurrentUser === undefined;
+  const effectiveRefreshing = roomState.cacheKey === cacheKey ? refreshing : false;
+
+  const replaceRooms = useCallback((nextRooms) => {
+    setRoomState({ cacheKey, rooms: nextRooms });
+    setCachedRoomList(cacheKey, nextRooms);
+  }, [cacheKey]);
+
+  const setRooms = useCallback((updater) => {
+    const socketUpdater = typeof updater === 'function' ? updater : () => updater;
+    socketUpdatersDuringRequestRef.current.push(socketUpdater);
+
+    setRoomState((previousState) => {
+      const currentRooms = previousState.cacheKey === cacheKey
+        ? previousState.rooms
+        : (getCachedRoomList(cacheKey) || []);
+      const nextRooms = socketUpdater(currentRooms);
+
+      setCachedRoomList(cacheKey, nextRooms);
+      return { cacheKey, rooms: nextRooms };
+    });
+  }, [cacheKey]);
 
   const handleFetchError = useCallback((error) => {
     let errorMessage = '채팅방 목록을 불러오는데 실패했습니다.';
@@ -57,6 +111,7 @@ export const useRoomList = ({
   }, [isRetrying, setConnectionStatus]);
 
   const loadRooms = useCallback(async () => {
+    socketUpdatersDuringRequestRef.current = [];
     const connectionPromise = attemptConnection();
     const roomsPromise = axiosInstance.get('/api/rooms');
 
@@ -74,8 +129,10 @@ export const useRoomList = ({
       throw new Error('INVALID_RESPONSE');
     }
 
-    setRooms(response.data.data);
-  }, [attemptConnection]);
+    const socketUpdaters = socketUpdatersDuringRequestRef.current;
+    socketUpdatersDuringRequestRef.current = [];
+    replaceRooms(applySocketUpdatesWithoutDuplicates(response.data.data, socketUpdaters));
+  }, [attemptConnection, replaceRooms]);
 
   const fetchRooms = useCallback(async () => {
     if (!currentUser?.token || isLoadingRef.current) {
@@ -84,8 +141,10 @@ export const useRoomList = ({
 
     try {
       isLoadingRef.current = true;
+      const hasCachedRooms = getCachedRoomList(cacheKey) !== undefined;
 
-      setLoading(true);
+      setLoading(!hasCachedRooms);
+      setRefreshing(hasCachedRooms);
       setError(null);
 
       await loadRooms();
@@ -97,9 +156,10 @@ export const useRoomList = ({
       handleFetchError(error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
       isLoadingRef.current = false;
     }
-  }, [currentUser, isInitialLoad, loadRooms, handleFetchError]);
+  }, [currentUser, cacheKey, isInitialLoad, loadRooms, handleFetchError]);
 
   /**
    * 이미 그려진 목록을 유지한 채 다시 조회한다.
@@ -176,8 +236,8 @@ export const useRoomList = ({
     setRooms,
     error,
     setError,
-    loading,
-    refreshing,
+    loading: effectiveLoading,
+    refreshing: effectiveRefreshing,
     joiningRoom,
     fetchRooms,
     refreshRooms,

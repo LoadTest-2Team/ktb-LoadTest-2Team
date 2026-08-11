@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import axiosInstance from '@/services/axios';
 import { useRoomList } from '../useRoomList';
 import { CONNECTION_STATUS } from '../useServerConnection';
+import { clearRoomListCache } from '../roomListCache';
 
 vi.mock('@/services/axios', () => ({
   default: {
@@ -13,10 +14,10 @@ vi.mock('@/services/axios', () => ({
 
 const roomsResponse = (rooms) => ({ data: { data: rooms } });
 
-const renderRoomList = () =>
+const renderRoomList = (currentUser = { id: 'user-1', token: 'token-1', sessionId: 'session-1' }) =>
   renderHook(() =>
     useRoomList({
-      currentUser: { token: 'token-1' },
+      currentUser,
       router: { push: vi.fn() },
       connectionStatus: CONNECTION_STATUS.CONNECTED,
       setConnectionStatus: vi.fn(),
@@ -32,6 +33,77 @@ const renderRoomList = () =>
 describe('useRoomList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearRoomListCache();
+  });
+
+  it('shows a cached list immediately on remount and revalidates it', async () => {
+    axiosInstance.get
+      .mockResolvedValueOnce(roomsResponse([{ _id: 'room-1', name: 'cached' }]))
+      .mockResolvedValueOnce(roomsResponse([{ _id: 'room-1', name: 'fresh' }]));
+
+    const firstMount = renderRoomList();
+    await act(async () => {
+      await firstMount.result.current.fetchRooms();
+    });
+    firstMount.unmount();
+
+    const secondMount = renderRoomList();
+    expect(secondMount.result.current.rooms).toEqual([{ _id: 'room-1', name: 'cached' }]);
+    expect(secondMount.result.current.loading).toBe(false);
+
+    await act(async () => {
+      await secondMount.result.current.fetchRooms();
+    });
+
+    expect(axiosInstance.get).toHaveBeenCalledTimes(2);
+    expect(secondMount.result.current.rooms).toEqual([{ _id: 'room-1', name: 'fresh' }]);
+  });
+
+  it('does not expose one user cache to another user', async () => {
+    axiosInstance.get.mockResolvedValue(roomsResponse([{ _id: 'room-1' }]));
+
+    const firstUser = renderRoomList();
+    await act(async () => {
+      await firstUser.result.current.fetchRooms();
+    });
+    firstUser.unmount();
+
+    const secondUser = renderRoomList({ id: 'user-2', token: 'token-2', sessionId: 'session-2' });
+
+    expect(secondUser.result.current.rooms).toEqual([]);
+    expect(secondUser.result.current.loading).toBe(true);
+  });
+
+  it('preserves socket updates that arrive during revalidation without duplicating rooms', async () => {
+    let resolveRequest;
+    axiosInstance.get.mockReturnValue(new Promise((resolve) => {
+      resolveRequest = resolve;
+    }));
+
+    const { result } = renderRoomList();
+    let requestPromise;
+    act(() => {
+      requestPromise = result.current.fetchRooms();
+    });
+
+    act(() => {
+      result.current.setRooms(() => [
+        { _id: 'room-2', name: 'socket-created' },
+        { _id: 'room-1', name: 'socket-updated', recentMessageCount: 2 },
+      ]);
+    });
+
+    await act(async () => {
+      resolveRequest(roomsResponse([
+        { _id: 'room-1', name: 'server-old', recentMessageCount: 1 },
+      ]));
+      await requestPromise;
+    });
+
+    expect(result.current.rooms).toEqual([
+      { _id: 'room-2', name: 'socket-created' },
+      { _id: 'room-1', name: 'socket-updated', recentMessageCount: 2 },
+    ]);
   });
 
   it('replaces the list on refresh without leaving the refreshing flag on', async () => {

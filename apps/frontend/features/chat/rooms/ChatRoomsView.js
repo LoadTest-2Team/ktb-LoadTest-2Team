@@ -59,7 +59,7 @@ export default function ChatRoomsView({ router }) {
   });
 
   const connectionCheckTimerRef = useRef(null);
-  const initialFetchStartedRef = useRef(false);
+  const initialFetchUserKeyRef = useRef(null);
   const refreshRoomsRef = useRef(refreshRooms);
 
   useEffect(() => {
@@ -68,13 +68,13 @@ export default function ChatRoomsView({ router }) {
 
   useEffect(() => {
     if (!currentUserKey) {
-      initialFetchStartedRef.current = false;
+      initialFetchUserKeyRef.current = null;
       return;
     }
 
-    if (initialFetchStartedRef.current) return;
+    if (initialFetchUserKeyRef.current === currentUserKey) return;
 
-    initialFetchStartedRef.current = true;
+    initialFetchUserKeyRef.current = currentUserKey;
 
     let retryTimer = null;
     let cancelled = false;
