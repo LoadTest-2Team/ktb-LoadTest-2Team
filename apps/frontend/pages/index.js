@@ -116,29 +116,6 @@ const Login = () => {
     }
   };
 
-  if (serverStatus.checking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-[var(--vapor-space-300)] bg-[var(--vapor-color-background)]">
-        <VStack
-          $css={{
-            gap: '$250',
-            width: '400px',
-            padding: '$300',
-            borderRadius: '$300',
-            border: '1px solid var(--vapor-color-border-normal)',
-          }}
-        >
-          <div className="text-center mb-[2rem]">
-            <img src="images/logo-h.png" className="w-1/2 mx-auto" alt="KTB Chat 로고" />
-          </div>
-          <div className="text-center">
-            <Text typography="body1">서버 연결 확인 중...</Text>
-          </div>
-        </VStack>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center p-(--vapor-space-300) bg-(--vapor-color-background)">
       <VStack
@@ -154,6 +131,12 @@ const Login = () => {
         <div className="text-center mb-4">
           <img src="images/logo-h.png" className="w-1/2 mx-auto" alt="KTB Chat 로고" />
         </div>
+
+        {serverStatus.checking && (
+          <Text typography="body2" data-testid="server-status-checking">
+            서버 연결 확인 중...
+          </Text>
+        )}
 
         {serverNotice && (
           <Callout.Root colorPalette="warning" data-testid="server-status-message">
