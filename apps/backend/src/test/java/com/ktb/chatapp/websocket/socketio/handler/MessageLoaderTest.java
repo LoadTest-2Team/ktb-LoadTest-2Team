@@ -121,12 +121,12 @@ class MessageLoaderTest {
         verifyAscending(result);
     }
     
-    private static @NotNull Page<Message> getMessagePage(List<Message> first30Messages) {
+    private static @NotNull Slice<Message> getMessagePage(List<Message> first30Messages) {
         List<Message> messages = new ArrayList<>(first30Messages.reversed());
-        
+
         Pageable pageable = PageRequest.of(0, 30, Sort.by("timestamp").descending());
-        Page<Message> messagePage = new PageImpl<>(messages, pageable, 50);
-        return messagePage;
+        // 원래 PageImpl(messages, pageable, 50)과 동일하게 hasNext=true (30개 중 30개, 총 50개라 다음 페이지 있음)
+        return new SliceImpl<>(messages, pageable, true);
     }
     
     @Test
@@ -137,7 +137,7 @@ class MessageLoaderTest {
         
         // DB는 DESC 정렬로 반환 (최신 것부터)
         // [1시간 전, 2시간 전, ..., 30시간 전]
-        Page<Message> messagePage = getMessagePage(last30Messages);
+        Slice<Message> messagePage = getMessagePage(last30Messages);
         
         when(messageRepository.findByRoomIdAndTimestampBefore(
                 eq(roomId), any(LocalDateTime.class), any(Pageable.class)))

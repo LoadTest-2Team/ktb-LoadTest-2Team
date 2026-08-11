@@ -8,15 +8,17 @@ import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.RoomRepository;
 import com.ktb.chatapp.repository.UserRepository;
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -34,12 +36,26 @@ public class RoomService {
     public RoomsResponse getAllRooms(String name) {
 
         try {
-            // 전체 방을 조회해 최신순으로 정렬한다
-            List<RoomResponse> roomResponses = roomRepository.findAll().stream()
-                .map(room -> mapToRoomResponse(room, name))
-                .sorted(Comparator.comparing(
-                    RoomResponse::getCreatedAtDateTime,
-                    Comparator.nullsLast(Comparator.reverseOrder())))
+            화// 최신순 정렬은 DB 레벨에서 처리한다 (Java 메모리 정렬 제거)
+            List<Room> rooms = roomRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+
+            Set<String> userIds = new HashSet<>();
+            for (Room room : rooms) {
+                if (room.getCreator() != null) {
+                    userIds.add(room.getCreator());
+                }
+                userIds.addAll(room.getParticipantIds());
+            }
+            Map<String, User> userById = userIds.isEmpty()
+                ? Map.of()
+                : userRepository.findAllById(userIds).stream()
+                    .collect(Collectors.toMap(User::getId, user -> user));
+
+            Map<String, Integer> recentMessageCounts = recentMessageCounter.countRecentMessages(
+                rooms.stream().map(Room::getId).toList());
+
+            List<RoomResponse> roomResponses = rooms.stream()
+                .map(room -> mapToRoomResponse(room, name, userById, recentMessageCounts.getOrDefault(room.getId(), 0)))
                 .collect(Collectors.toList());
 
             PageMetadata metadata = PageMetadata.builder()
@@ -181,18 +197,30 @@ public class RoomService {
     private RoomResponse mapToRoomResponse(Room room, String name) {
         if (room == null) return null;
 
-        User creator = null;
+        Set<String> userIds = new HashSet<>();
         if (room.getCreator() != null) {
-            creator = userRepository.findById(room.getCreator()).orElse(null);
+            userIds.add(room.getCreator());
         }
-
-        List<User> participants = room.getParticipantIds().stream()
-            .map(userRepository::findById)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .toList();
+        userIds.addAll(room.getParticipantIds());
+        Map<String, User> userById = userIds.isEmpty()
+            ? Map.of()
+            : userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(User::getId, user -> user));
 
         int recentMessageCount = recentMessageCounter.countRecentMessages(room.getId());
+
+        return mapToRoomResponse(room, name, userById, recentMessageCount);
+    }
+
+    private RoomResponse mapToRoomResponse(Room room, String name, Map<String, User> userById, int recentMessageCount) {
+        if (room == null) return null;
+
+        User creator = room.getCreator() != null ? userById.get(room.getCreator()) : null;
+
+        List<User> participants = room.getParticipantIds().stream()
+            .map(userById::get)
+            .filter(user -> user != null)
+            .toList();
 
         return RoomResponse.builder()
             .id(room.getId())

@@ -57,9 +57,18 @@ export const useRoomList = ({
   }, [isRetrying, setConnectionStatus]);
 
   const loadRooms = useCallback(async () => {
-    await attemptConnection();
+    const connectionPromise = attemptConnection();
+    const roomsPromise = axiosInstance.get('/api/rooms');
 
-    const response = await axiosInstance.get('/api/rooms');
+    let response;
+    try {
+      response = await roomsPromise;
+    } catch (roomsError) {
+      await connectionPromise;
+      throw roomsError;
+    }
+
+    await connectionPromise;
 
     if (!response?.data?.data) {
       throw new Error('INVALID_RESPONSE');
