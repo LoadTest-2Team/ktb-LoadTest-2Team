@@ -10,6 +10,7 @@ import com.ktb.chatapp.dto.UserResponse;
 import com.ktb.chatapp.model.Message;
 import com.ktb.chatapp.model.MessageType;
 import com.ktb.chatapp.model.Room;
+import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.MessageRepository;
 import com.ktb.chatapp.repository.RoomRepository;
 import com.ktb.chatapp.repository.UserRepository;
@@ -17,6 +18,7 @@ import com.ktb.chatapp.websocket.socketio.SocketUser;
 import com.ktb.chatapp.websocket.socketio.UserRooms;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -102,12 +104,15 @@ public class RoomJoinHandler {
                 return;
             }
 
-            // 참가자 정보 조회
-            List<UserResponse> participants = roomOpt.get().getParticipantIds()
-                    .stream()
-                    .map(userRepository::findById)
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
+            // 참가자 정보 조회 (배치 조회로 N+1 방지)
+            Set<String> participantIds = roomOpt.get().getParticipantIds();
+            Map<String, User> userById = participantIds.isEmpty()
+                    ? Map.of()
+                    : userRepository.findAllById(participantIds).stream()
+                        .collect(Collectors.toMap(User::getId, u -> u));
+            List<UserResponse> participants = participantIds.stream()
+                    .map(userById::get)
+                    .filter(Objects::nonNull)
                     .map(UserResponse::from)
                     .toList();
             
