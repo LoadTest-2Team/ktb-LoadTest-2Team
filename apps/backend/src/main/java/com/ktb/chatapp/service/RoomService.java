@@ -8,7 +8,6 @@ import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.RoomRepository;
 import com.ktb.chatapp.repository.UserRepository;
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -19,6 +18,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -36,8 +36,8 @@ public class RoomService {
     public RoomsResponse getAllRooms(String name) {
 
         try {
-            // 전체 방을 조회해 최신순으로 정렬한다
-            List<Room> rooms = roomRepository.findAll();
+            화// 최신순 정렬은 DB 레벨에서 처리한다 (Java 메모리 정렬 제거)
+            List<Room> rooms = roomRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
 
             Set<String> userIds = new HashSet<>();
             for (Room room : rooms) {
@@ -56,9 +56,6 @@ public class RoomService {
 
             List<RoomResponse> roomResponses = rooms.stream()
                 .map(room -> mapToRoomResponse(room, name, userById, recentMessageCounts.getOrDefault(room.getId(), 0)))
-                .sorted(Comparator.comparing(
-                    RoomResponse::getCreatedAtDateTime,
-                    Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
 
             PageMetadata metadata = PageMetadata.builder()
