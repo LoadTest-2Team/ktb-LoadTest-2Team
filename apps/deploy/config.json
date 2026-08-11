@@ -9,26 +9,26 @@
     "mongodb":{
         "image_file_name":"mongodb.tar",
         "image_file_dir_path":"static/main/docker-images/",
-        "uuid":"a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6rasd",
+        "uuid":"a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6r1sd",
         "init_bash":"docker run -d --name mongodb -p $DB_PORT:$DB_PORT -v /data/db -e MONGO_INITDB_ROOT_USERNAME=$DB_USER -e MONGO_INITDB_ROOT_PASSWORD=$DB_PASSWORD mongodb:latest"
     },
     "backend":{
         "image_file_name":"backend.tar",
         "image_file_dir_path":"static/main/docker-images/",
-        "uuid":"b1c2d3e4-5f6g-7h8i-9j0k-1l2m3n4o5p6rasd",
+        "uuid":"b1c2d3e4-5f6g-7h8i-9j0k-1l2m3n4o5p6ra1d",
         "cloudwatch_agent_init_bash": "mkdir -p /home/ubuntu/cloudwatch-agent-deploy && aws s3 cp s3://$S3_BUCKET_NAME/static/main/monitoring/cloudwatch-backend.tar /tmp/cloudwatch-backend.tar && tar -xf /tmp/cloudwatch-backend.tar -C /home/ubuntu/cloudwatch-agent-deploy && chmod +x /home/ubuntu/cloudwatch-agent-deploy/install-cloudwatch-agent.sh && sudo env AWS_REGION=ap-northeast-2 LOG_GROUP_PREFIX=/ktb/prod /home/ubuntu/cloudwatch-agent-deploy/install-cloudwatch-agent.sh backend",
         "init_bash":"docker run -d --name backend -p $BACKEND_PORT:$BACKEND_PORT -p $WS_PORT:$WS_PORT -e MONGO_URI=$MONGO_URI -e JWT_SECRET=$JWT_SECRET -e ENCRYPTION_KEY=$ENCRYPTION_KEY -e ENCRYPTION_SALT=$ENCRYPTION_SALT -e WS_PORT=$WS_PORT -e REDIS_HOST=$REDIS_HOST -e REDIS_PORT=$REDIS_PORT backend:latest"
     },
     "frontend":{
         "image_file_name":"frontend.tar",
         "image_file_dir_path":"static/main/docker-images/",
-        "uuid":"c1d2e3f4-5g6h-7i8j-9k0l-1m2n3o4p5q6rasd",
+        "uuid":"c1d2e3f4-5g6h-7i8j-9k0l-1m2n3o4p5q6ra4d",
         "init_bash":"docker run -d --name frontend -p $FRONTEND_PORT:$FRONTEND_PORT -e NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL -e NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL frontend:latest"
     },
     "redis":{
         "image_file_name":"redis.tar",
         "image_file_dir_path":"static/main/docker-images/",
-        "uuid":"d1e2f3g4-5h6i-7j8k-9l0m-1n2o3p4q5r6rasd",
+        "uuid":"d1e2f3g4-5h6i-7j8k-9l0m-1n2o3p4q5r6ra2d",
         "init_bash":"docker run -d --name redis -p $REDIS_PORT:$REDIS_PORT redis:latest"
     }
 }
